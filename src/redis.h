@@ -35,9 +35,17 @@ class Redis {
                               const rocksdb::Slice* end,
                               const ColumnFamilyType& type = kMetaAndData) = 0;
   virtual Status GetProperty(const std::string& property, uint64_t* out) = 0;
-
-  
+  virtual Status ScanKeyNum(KeyInfo* key_info) = 0;
+  virtual Status ScanKeys(const std::string& pattern,
+                          std::vector<std::string>* keys) = 0;
+  virtual Status PKPatternMatchDel(const std::string& pattern,
+                                   int32_t* ret) = 0;
   // Keys Commands
+  virtual Status Del(const Slice& key) = 0;
+  virtual Status Expire(const Slice& key, int32_t ttl) = 0;
+  virtual Status ExpireAt(const Slice& key, int32_t timestamp) = 0;
+  virtual Status Persist(const Slice& key) = 0;
+  virtual Status TTL(const Slice& key, int64_t* timestamp) = 0;
 
   // Aux
 
@@ -71,4 +79,4 @@ class Redis {
   Status UpdateSpecificKeyStatistics(const std::string& key, size_t count);
   Status AddCompactKeyTaskIfNeeded(const std::string& key, size_t total);
 };
-}  // namespace blackwindow
+}  // namespace blackwidow

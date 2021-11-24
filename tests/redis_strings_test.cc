@@ -12,4 +12,8 @@ int main(int argc, char **argv) {
   } else {
     std::cout << "RedisStrings open failed: " << status.ToString() << std::endl;
   }
+
+ status = redis.Expire("test_string_redis_key", 24*60*60);
+ std::cout << status.ToString() << std::endl;
+ return 0;
 }

@@ -2,16 +2,18 @@
 
 #include <memory>
 #include <rocksdb/status.h>
+#include <rocksdb/slice.h>
 
 namespace blackwidow {
 
 using Status = rocksdb::Status;
+using Slice = rocksdb::Slice;
 
 class Mutex {
 public:
  virtual ~Mutex() {}
  virtual Status Lock() = 0;
- virtual Status TryLockFor(int64_t timeoutMircro);
+ virtual Status TryLockFor(int64_t timeoutMircro) = 0;
  virtual void UnLock() = 0;
 };
 

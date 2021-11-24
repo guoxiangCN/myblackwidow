@@ -1,6 +1,7 @@
 #include "redis_strings.h"
-#include "strings_filter.h"
 #include "scope_snapshot.h"
+#include "scope_record_lock.h"
+#include "strings_filter.h"
 
 namespace blackwidow {
 
@@ -31,12 +32,90 @@ Status RedisStrings::CompactRange(const rocksdb::Slice* begin,
   return db_->CompactRange(default_compact_range_options_, begin, end);
 }
 
-Status RedisStrings::GetProperty(const std::string& property,
-                             uint64_t* out) {
+Status RedisStrings::GetProperty(const std::string& property, uint64_t* out) {
   std::string value;
-  auto s= db_->GetProperty(db_->DefaultColumnFamily(),property, &value);
+  auto s = db_->GetProperty(db_->DefaultColumnFamily(), property, &value);
   *out = std::strtoull(value.c_str(), NULL, 10);
   return Status::OK();
 }
+
+Status RedisStrings::ScanKeyNum(KeyInfo* key_info) {
+  // TODO
+  return Status::OK();
+}
+Status RedisStrings::ScanKeys(const std::string& pattern,
+                              std::vector<std::string>* keys) {
+  // TODO
+  return Status::OK();
+}
+Status RedisStrings::PKPatternMatchDel(const std::string& pattern,
+                                       int32_t* ret) {
+  // TODO
+  return Status::OK();
+}
+
+
+Status RedisStrings::Del(const Slice& key) {
+  std::string value;
+  ScopeRecordLock(lock_mgr_, key);
+  Status s = db_->Get(default_read_options_, key, &value);
+  if(s.ok()) {
+    ParsedStringsValue parsed_strings_value(&value);
+    if(parsed_strings_value.IsStale()) {
+      return Status::NotFound("Stale");
+    }
+    return db_->Delete(default_write_options_, key);
+  }
+  return s;
+}
+
+Status RedisStrings::Expire(const Slice& key, int32_t ttl) {
+  std::string value;
+  ScopeRecordLock(lock_mgr_, key);
+  Status s = db_->Get(default_read_options_, key, &value);
+  if(s.ok()) {
+    ParsedStringsValue parsed_strings_value(&value);
+    if(parsed_strings_value.IsStale()) {
+      return Status::NotFound("Stale");
+    }
+    if(ttl > 0) {
+      parsed_strings_value.SetRelativeTimestamp(ttl);
+      return db_->Put(default_write_options_, key, value);
+    } else {
+      return db_->Delete(default_write_options_, key);
+    }
+  }
+  return s;
+}
+
+static int32_t GetCurrentUnixTime() {
+  int64_t unix_time;
+  rocksdb::Env::Default()->GetCurrentTime(&unix_time);
+  return static_cast<int32_t>(unix_time);
+}
+
+ Status RedisStrings::ExpireAt(const Slice& key, int32_t timestamp) {
+   std::string value;
+   ScopeRecordLock(lock_mgr_, key);
+   Status s = db_->Get(default_read_options_, key, &value);
+   if(s.ok()) {
+     ParsedStringsValue parsed_strings_value(&value);
+     if(parsed_strings_value.IsStale()) {
+       return Status::NotFound("Stale");
+     }
+     if(timestamp >= GetCurrentUnixTime()) {
+         parsed_strings_value.set_timestamp(timestamp);
+        return db_->Put(default_write_options_, key, value);
+     } else {
+       return db_->Delete(default_write_options_, key);
+     }
+   }
+   return s;
+ }
+  Status RedisStrings::Persist(const Slice& key) {}
+  Status RedisStrings::TTL(const Slice& key, int64_t* timestamp){
+
+  }
+
 
 }  // namespace blackwidow

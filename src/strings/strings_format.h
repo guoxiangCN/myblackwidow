@@ -62,6 +62,7 @@ class ParsedStringsValue : public ParsedInternalValue {
 
   // Strings type do not have version field;
   void SetVersionToValue() override {
+      // NOP
   }
 
   void SetTimestampToValue() override {

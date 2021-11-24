@@ -4,8 +4,12 @@ namespace blackwidow
 {
 
 Redis::Redis(BlackWidow *const bw, const DataType & type)
-    : bw_(bw) {
-    // TODO
+    : bw_(bw), 
+    type_(type),
+    lock_mgr_(new LockMgr(1000, 0, std::make_shared<MutexFactoryImpl>())),
+    db_(nullptr),
+    small_compaction_threshold_(5000) {
+  handles_.clear();
 }
 
 Redis::~Redis() {

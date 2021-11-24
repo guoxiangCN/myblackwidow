@@ -10,7 +10,7 @@ namespace blackwidow {
 class MutexImpl : public Mutex {
  public:
   MutexImpl() {}
-  ~MutexImpl() {}
+  ~MutexImpl() override {}
 
   Status Lock() override;
 

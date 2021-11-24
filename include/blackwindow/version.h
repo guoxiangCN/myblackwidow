@@ -1,5 +1,0 @@
-#pragma once
-
-#define BLACKWINDOW_MAJOR 1
-#define BLACKWINDOW_MINOR 0
-#define BLACKWINDOW_PATCH 0
