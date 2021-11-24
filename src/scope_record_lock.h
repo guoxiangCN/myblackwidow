@@ -31,6 +31,45 @@ class ScopeRecordLock {
 using RecordLockGuard = ScopeRecordLock;
 
 // TODO
-class MultiScopedReadLock {};
+class MultiScopedRecordLock {
+public:
+    MultiScopedRecordLock(const MultiScopedRecordLock&) = delete;
+    MultiScopedRecordLock& operator==(const MultiScopedRecordLock&) = delete;
+
+    MultiScopedRecordLock(LockMgr *lock_mgr, const std::vector<std::string> &keys)
+        :lock_mgr_(lock_mgr), keys_(keys) {
+         std::string pre_key;
+    std::sort(keys_.begin(), keys_.end());
+    if (!keys_.empty() &&
+      keys_[0].empty()) {
+      lock_mgr_->TryLock(pre_key);
+    }
+
+    for (const auto& key : keys_) {
+      if (pre_key != key) {
+        lock_mgr_->TryLock(key);
+        pre_key = key;
+      }
+    }
+    }
+
+    ~MultiScopedRecordLock() {
+        std::string pre_key;
+    if (!keys_.empty() &&
+      keys_[0].empty()) {
+      lock_mgr_->UnLock(pre_key);
+    }
+
+    for (const auto& key : keys_) {
+      if (pre_key != key) {
+        lock_mgr_->UnLock(key);
+        pre_key = key;
+      }
+    }
+    }
+private:
+ LockMgr* const lock_mgr_;
+ std::vector<std::string> keys_;
+};
 
 }  // namespace blackwidow

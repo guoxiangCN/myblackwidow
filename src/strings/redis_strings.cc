@@ -161,6 +161,45 @@ void RedisStrings::ScanDatabase() {
   // TODO
 }
 
+Status RedisStrings::IncrBy(const Slice& key, int64_t value, int64_t* ret) {
+  std::string internal_val;
+  RecordLockGuard g(lock_mgr_, key);
+  Status s = db_->Get(default_read_options_, key, &internal_val);
+  if (s.ok()) {
+    ParsedStringsValue psv(&internal_val);
+    if (psv.IsStale()) {
+      // 初始化为0再incrBy
+
+    } else {
+      
+    }
+  } else if (s.IsNotFound()) {
+    // 初始化为0再incrBy
+    std::string tmp = std::to_string(value);
+    StringsValue sv(tmp);
+    s = db_->Put(default_write_options_, key, sv.Encode());
+    if (s.ok()) {
+      *ret = value;
+    }
+  }
+  return s;
+}
+
+Status RedisStrings::MSet(const std::vector<KeyValue>& kvlist) {
+  std::vector<std::string> keys;
+  for(const auto & kv : kvlist) {
+    keys.push_back(kv.key);
+  }
+
+  MultiScopedRecordLock l(lock_mgr_, keys);
+  rocksdb::WriteBatch batch;
+  for(const auto & kv : kvlist ){
+    StringsValue sv(kv.value);
+    batch.Put(kv.key, sv.Encode());
+  }
+  return db_->Write(default_write_options_, &batch);
+}
+
 Status RedisStrings::Set(const Slice& key, const Slice& value) {
   StringsValue strings_value(value);
   ScopeRecordLock l(lock_mgr_, key);

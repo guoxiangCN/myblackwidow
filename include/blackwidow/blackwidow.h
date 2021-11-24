@@ -58,9 +58,7 @@ class LRUCache;
 
 // TODO annotate ME
 struct BlackWidowOptions {
-    // rocksdb open的options
   rocksdb::Options options;
-  // rocksdb
   rocksdb::BlockBasedTableOptions table_options;
   size_t block_cache_size;
   bool share_block_cache;
@@ -80,6 +78,11 @@ struct BlackWidowOptions {
 struct KeyValue {
   std::string key;
   std::string value;
+
+  KeyValue() = default;
+  KeyValue(const std::string &key_, const std::string &value_)
+    :key(key_), value(value_) {}
+
   bool operator==(const KeyValue& kv) const {
     return (kv.key == key && kv.value == value);
   }

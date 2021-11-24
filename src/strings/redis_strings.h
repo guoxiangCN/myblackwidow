@@ -8,7 +8,7 @@ namespace blackwidow {
 class RedisStrings : public Redis {
  public:
   RedisStrings(BlackWidow* const bw);
-  ~RedisStrings() = default;
+  ~RedisStrings() override = default;
 
   // Command Commands Define in ::Redis
   Status Open(const BlackWidowOptions& bw_options,
@@ -36,8 +36,9 @@ class RedisStrings : public Redis {
   void ScanDatabase();
 
   // String Commands
-
-  Status Set(const Slice &key, const Slice &value);
+  Status IncrBy(const Slice& key, int64_t value, int64_t* ret);
+  Status MSet(const std::vector<KeyValue>& kvlist);
+  Status Set(const Slice& key, const Slice& value);
   Status Get(const Slice& key, std::string* value);
 };
 

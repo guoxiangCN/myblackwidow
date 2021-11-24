@@ -10,6 +10,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -O0")
 include_directories("${PROJECT_SOURCE_DIR}/include")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/strings")
+include_directories("${PROJECT_SOURCE_DIR}/src/lists")
 
 include_directories("${PROJECT_SOURCE_DIR}/deps/googletest/googletest/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/benchmark/include")
@@ -31,6 +32,7 @@ add_library(myblackwidow STATIC
     src/lock_mgr.cc
     src/build_version.cc 
     src/strings/redis_strings.cc
+    src/lists/redis_lists.cc
 )
 target_link_libraries(myblackwidow rocksdb)
 

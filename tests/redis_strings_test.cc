@@ -26,10 +26,24 @@ int main(int argc, char **argv) {
  redis.Get("name", &value);
  std::cout << "name = "<< value << std::endl;
 
- std::this_thread::sleep_for(std::chrono::seconds(6));
+//  std::this_thread::sleep_for(std::chrono::seconds(6));
+//  redis.Get("name", &value);
+//  std::cout << "name = "<< value << std::endl;
+
+ std::vector<blackwidow::KeyValue> kvlist;
+ kvlist.emplace_back("name", "pikaTeam");
+ kvlist.emplace_back("company", "Qihu360");
+ kvlist.emplace_back("birth", "2015");
+
+ redis.MSet(kvlist);
+
  redis.Get("name", &value);
- std::cout << "name = "<< value << std::endl;
+ std::cout << value << std::endl;
 
+ redis.Get("company", &value);
+ std::cout << value << std::endl;
 
+ redis.Get("birth", &value);
+ std::cout << value << std::endl;
  return 0;
 }
