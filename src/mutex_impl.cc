@@ -1,6 +1,6 @@
 
-#include "mutex.h"
 #include "mutex_impl.h"
+#include "mutex.h"
 
 #include <condition_variable>
 #include <memory>
@@ -16,7 +16,9 @@ class MutexImpl : public Mutex {
 
   Status TryLockFor(int64_t timeout_time) override;
 
-  void UnLock() override { mutex_.unlock(); }
+  void UnLock() override {
+    mutex_.unlock();
+  }
 
   friend class CondVarImpl;
 
@@ -31,24 +33,25 @@ class CondVarImpl : public CondVar {
 
   Status Wait(std::shared_ptr<Mutex> mutex) override;
 
-  Status WaitFor(std::shared_ptr<Mutex> mutex,
-                 int64_t timeout_time) override;
+  Status WaitFor(std::shared_ptr<Mutex> mutex, int64_t timeout_time) override;
 
-  void Notify() override { cv_.notify_one(); }
+  void Notify() override {
+    cv_.notify_one();
+  }
 
-  void NotifyAll() override { cv_.notify_all(); }
+  void NotifyAll() override {
+    cv_.notify_all();
+  }
 
  private:
   std::condition_variable cv_;
 };
 
-std::shared_ptr<Mutex>
-MutexFactoryImpl::AllocateMutex() {
+std::shared_ptr<Mutex> MutexFactoryImpl::AllocateMutex() {
   return std::shared_ptr<Mutex>(new MutexImpl());
 }
 
-std::shared_ptr<CondVar>
-MutexFactoryImpl::AllocateCondVar() {
+std::shared_ptr<CondVar> MutexFactoryImpl::AllocateCondVar() {
   return std::shared_ptr<CondVar>(new CondVarImpl());
 }
 
@@ -81,8 +84,7 @@ Status MutexImpl::TryLockFor(int64_t timeout_time) {
   return Status::OK();
 }
 
-Status CondVarImpl::Wait(
-    std::shared_ptr<Mutex> mutex) {
+Status CondVarImpl::Wait(std::shared_ptr<Mutex> mutex) {
   auto mutex_impl = reinterpret_cast<MutexImpl*>(mutex.get());
 
   std::unique_lock<std::mutex> lock(mutex_impl->mutex_, std::adopt_lock);
@@ -94,8 +96,8 @@ Status CondVarImpl::Wait(
   return Status::OK();
 }
 
-Status CondVarImpl::WaitFor(
-    std::shared_ptr<Mutex> mutex, int64_t timeout_time) {
+Status CondVarImpl::WaitFor(std::shared_ptr<Mutex> mutex,
+                            int64_t timeout_time) {
   Status s;
 
   auto mutex_impl = reinterpret_cast<MutexImpl*>(mutex.get());

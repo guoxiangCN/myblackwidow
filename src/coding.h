@@ -10,10 +10,11 @@
 #ifndef BLACKWIDOW_PLATFORM_IS_LITTLE_ENDIAN
 #define BLACKWIDOW_PLATFORM_IS_LITTLE_ENDIAN (__BYTE_ORDER == __LITTLE_ENDIAN)
 #endif
+#include <cstdint>
 #include <string.h>
 
 namespace blackwidow {
-  static const bool kLittleEndian = BLACKWIDOW_PLATFORM_IS_LITTLE_ENDIAN;
+static const bool kLittleEndian = BLACKWIDOW_PLATFORM_IS_LITTLE_ENDIAN;
 #undef BLACKWIDOW_PLATFORM_IS_LITTLE_ENDIAN
 
 inline void EncodeFixed32(char* buf, uint32_t value) {
@@ -49,10 +50,10 @@ inline uint32_t DecodeFixed32(const char* ptr) {
     memcpy(&result, ptr, sizeof(result));  // gcc optimizes this to a plain load
     return result;
   } else {
-    return ((static_cast<uint32_t>(static_cast<unsigned char>(ptr[0])))
-        | (static_cast<uint32_t>(static_cast<unsigned char>(ptr[1])) << 8)
-        | (static_cast<uint32_t>(static_cast<unsigned char>(ptr[2])) << 16)
-        | (static_cast<uint32_t>(static_cast<unsigned char>(ptr[3])) << 24));
+    return ((static_cast<uint32_t>(static_cast<unsigned char>(ptr[0]))) |
+            (static_cast<uint32_t>(static_cast<unsigned char>(ptr[1])) << 8) |
+            (static_cast<uint32_t>(static_cast<unsigned char>(ptr[2])) << 16) |
+            (static_cast<uint32_t>(static_cast<unsigned char>(ptr[3])) << 24));
   }
 }
 
@@ -71,4 +72,3 @@ inline uint64_t DecodeFixed64(const char* ptr) {
 
 }  // namespace blackwidow
 #endif  // SRC_CODING_H_
-

@@ -3,7 +3,7 @@
 #include <memory>
 #include <rocksdb/status.h>
 
-namespace blackwindow {
+namespace blackwidow {
 
 using Status = rocksdb::Status;
 

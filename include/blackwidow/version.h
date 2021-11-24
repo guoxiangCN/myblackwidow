@@ -1,0 +1,5 @@
+#pragma once
+
+#define BLACKWIDOW_MAJOR 1
+#define BLACKWIDOW_MINOR 0
+#define BLACKWIDOW_PATCH 0
