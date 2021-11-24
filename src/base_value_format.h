@@ -17,7 +17,7 @@ class InternalValue {
     : start_(space_), user_value_(user_value), version_(0), timestamp_(0) {}
 
   virtual ~InternalValue() {
-    if (start_ ! = space_) {
+    if (start_ != space_) {
       delete[] start_;
     }
   }
@@ -48,7 +48,7 @@ class InternalValue {
     } else {
       dst = new char[needed];
       if (start_ != space_) {
-        delete start_;
+        delete[] start_;
       }
     }
 
@@ -80,7 +80,7 @@ class ParsedInternalValue {
   virtual ~ParsedInternalValue() = default;
 
   Slice user_value() const {
-    returm user_value_;
+    return user_value_;
   }
 
   int32_t version() const {

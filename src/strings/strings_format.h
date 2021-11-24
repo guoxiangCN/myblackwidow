@@ -12,12 +12,12 @@ namespace blackwidow {
 
 class StringsValue : public InternalValue {
  public:
-  explicit StringsValue(cosnt Slice& user_value) : InternalValue(user_value) {}
+  explicit StringsValue(const Slice& user_value) : InternalValue(user_value) {}
 
   size_t AppendTimestampAndVersion() override {
     char* dst = start_;
     size_t usize = user_value_.size();
-    memccpy(dst, user_value_.data(), usize);
+    memcpy(dst, user_value_.data(), usize);
     dst += usize;
     EncodeFixed32(dst, timestamp_);
     return usize + sizeof(int32_t);
@@ -42,7 +42,7 @@ class ParsedStringsValue : public ParsedInternalValue {
   // Use this constructor in rocksdb::CompactionFilter::Filter();
   explicit ParsedStringsValue(const Slice& internal_value_slice)
     : ParsedInternalValue(internal_value_slice) {
-    assert(internal_value_str->size() >= kStringsValueSuffixLength);
+    assert(internal_value_slice.size() >= kStringsValueSuffixLength);
     if (internal_value_slice.size() >= kStringsValueSuffixLength) {
       user_value_ =
         Slice(internal_value_slice.data(),

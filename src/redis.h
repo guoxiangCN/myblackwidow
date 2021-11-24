@@ -35,6 +35,8 @@ class Redis {
                               const rocksdb::Slice* end,
                               const ColumnFamilyType& type = kMetaAndData) = 0;
   virtual Status GetProperty(const std::string& property, uint64_t* out) = 0;
+
+  
   // Keys Commands
 
   // Aux

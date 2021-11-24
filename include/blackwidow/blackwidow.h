@@ -6,7 +6,6 @@
 #include <string>
 #include <unistd.h>  // NOTE
 #include <vector>
-#include "mutex.h"
 #include "rocksdb/convenience.h"
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/options.h"
@@ -44,6 +43,8 @@ using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
 
 class Mutex;
+class CondVar;
+
 class RedisStrings;
 class RedisHashes;
 class RedisSets;
