@@ -28,6 +28,8 @@ class ScopeRecordLock {
   Slice key_;
 };
 
+using RecordLockGuard = ScopeRecordLock;
+
 // TODO
 class MultiScopedReadLock {};
 
