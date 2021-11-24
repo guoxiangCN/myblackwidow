@@ -28,6 +28,10 @@ class Redis {
     const OptionType& option_type,
     const std::unordered_map<std::string, std::string>& options);
 
+ // Aux Methods
+  Status SetMaxCacheStatisticKeys(size_t max_cache_statistic_keys);
+  Status SetSmallCompactionThreshold(size_t small_compaction_threshold);
+
   // Common Commands
   virtual Status Open(const BlackWidowOptions& bw_options,
                       const std::string& dbpath) = 0;
@@ -46,8 +50,8 @@ class Redis {
   virtual Status ExpireAt(const Slice& key, int32_t timestamp) = 0;
   virtual Status Persist(const Slice& key) = 0;
   virtual Status TTL(const Slice& key, int64_t* timestamp) = 0;
-
-  // Aux
+  // TODO Scan
+  // TODO: PKExpireScan
 
  protected:
   BlackWidow* const bw_;

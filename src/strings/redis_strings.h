@@ -23,8 +23,7 @@ class RedisStrings : public Redis {
   Status ScanKeyNum(KeyInfo* key_info) override;
   Status ScanKeys(const std::string& pattern,
                   std::vector<std::string>* keys) override;
-  Status PKPatternMatchDel(const std::string& pattern,
-                                   int32_t* ret) override;
+  Status PKPatternMatchDel(const std::string& pattern, int32_t* ret) override;
 
   // Keys Commands Define in ::Redis
   Status Del(const Slice& key) override;
@@ -33,11 +32,13 @@ class RedisStrings : public Redis {
   Status Persist(const Slice& key) override;
   Status TTL(const Slice& key, int64_t* timestamp) override;
 
-
-  // Self String Commands
-
   // Special Iterate all data
   void ScanDatabase();
+
+  // String Commands
+
+  Status Set(const Slice &key, const Slice &value);
+  Status Get(const Slice& key, std::string* value);
 };
 
 }  // namespace blackwidow

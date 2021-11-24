@@ -27,6 +27,8 @@ Redis::~Redis() {
 }
 
 
+
+
 Status Redis::SetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options) {
         if(option_type == OptionType::kDB) {
           return db_->SetDBOptions(options);
@@ -43,6 +45,16 @@ Status Redis::SetOptions(const OptionType& option_type, const std::unordered_map
             break;
         }
         return s;
+}
+Status Redis::SetMaxCacheStatisticKeys(size_t max_cache_statistic_keys) {
+  // TODO
+  //statistics_store_->SetCapacity(max_cache_statistic_keys);
+  return Status::OK();
+}
+
+Status Redis::SetSmallCompactionThreshold(size_t small_compaction_threshold) {
+  small_compaction_threshold_ = small_compaction_threshold;
+  return Status::OK();
 }
 
 
