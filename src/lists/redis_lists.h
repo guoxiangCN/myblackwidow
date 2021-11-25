@@ -28,7 +28,8 @@ class RedisLists : public Redis {
 
 
   // Self List Commands
-  Status LPushX(const Slice &key, const Slice &value, uint64_t *len);
+  Status LLen(const Slice& key, uint64_t* len);
+  Status LPushX(const Slice& key, const Slice& value, uint64_t* len);
   Status RPushX(const Slice &key, const Slice &value, uint64_t *len);
 };
 

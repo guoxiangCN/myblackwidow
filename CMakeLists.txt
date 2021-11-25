@@ -17,9 +17,7 @@ include_directories("${PROJECT_SOURCE_DIR}/deps/benchmark/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/rocksdb/include")
 
 
-# add_subdirectory(test)
-# add_subdirectory(deps/gtest)
-# add_subdirectory(deps/benchmark)
+add_subdirectory(tests)
 add_subdirectory(deps/rocksdb)
 
 
@@ -35,8 +33,3 @@ add_library(myblackwidow STATIC
     src/lists/redis_lists.cc
 )
 target_link_libraries(myblackwidow rocksdb)
-
-
-# testcases
-add_executable(redis_strings_test tests/redis_strings_test.cc)
-target_link_libraries(redis_strings_test myblackwidow)

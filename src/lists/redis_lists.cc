@@ -1,10 +1,12 @@
 #include "redis_lists.h"
 #include "lists_comparator.h"
+#include "lists_data_format.h"
 #include "lists_filter.h"
+#include "lists_meta_format.h"
 #include "scope_record_lock.h"
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace blackwidow {
 
@@ -40,8 +42,8 @@ Status RedisLists::Open(const BlackWidowOptions& bw_options,
 
   // Create a base opts for easy to be copied by meta and data.
   rocksdb::BlockBasedTableOptions base_block_opts(bw_options.table_options);
-  base_block_opts.filter_policy =
-    std::shared_ptr<const rocksdb::FilterPolicy>(rocksdb::NewBloomFilterPolicy(10, true));
+  base_block_opts.filter_policy = std::shared_ptr<const rocksdb::FilterPolicy>(
+    rocksdb::NewBloomFilterPolicy(10, true));
 
   rocksdb::BlockBasedTableOptions meta_block_opts(base_block_opts);
   rocksdb::BlockBasedTableOptions data_block_opts(base_block_opts);
@@ -114,19 +116,57 @@ Status RedisLists::PKPatternMatchDel(const std::string& pattern, int32_t* ret) {
 }
 
 
-
-Status RedisLists::LPushX(const Slice& key, const Slice& value, uint64_t *len) {
+Status RedisLists::LLen(const Slice& key, uint64_t* len) {
+  *len = 0;
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
+  Status s =
+    db_->Get(default_read_options_, LISTS_META_CF_HANDLE, key, &meta_value);
+    if(s.ok()) {
+      ParsedListsMetaValue parsed_meta_value(&meta_value);
+      if(parsed_meta_value.IsStale()) {
+        return Status::NotFound("Stale");
+      }
+      if(parsed_meta_value.count()==0) {
+        return Status::NotFound();
+      }
+      *len = parsed_meta_value.count();
+    }
+    return s;
+}
+
+Status RedisLists::LPushX(const Slice& key, const Slice& value, uint64_t* len) {
   *len = 0;
-  Status s = db_->Get(default_read_options_, LISTS_META_CF_HANDLE, key, &meta_value);
-  if(s.ok()) {
-    // TODO
+  std::string meta_value;
+  rocksdb::WriteBatch batch;
+  ScopeRecordLock l(lock_mgr_, key);
+  Status s =
+    db_->Get(default_read_options_, LISTS_META_CF_HANDLE, key, &meta_value);
+  if (s.ok()) {
+    ParsedListsMetaValue parsed_meta_value(&meta_value);
+
+    if (parsed_meta_value.IsStale()) {
+      return Status::NotFound("Stale");
+    }
+
+    if (parsed_meta_value.count() == 0) {
+      return Status::NotFound();
+    }
+
+    uint64_t index = parsed_meta_value.left_index();
+    int32_t version = parsed_meta_value.version();
+    parsed_meta_value.ModifyLeftIndex(1);
+    parsed_meta_value.ModifyCount(1);
+    ListsDataKey data_key(key, version, index);
+    batch.Put(LISTS_META_CF_HANDLE, key, meta_value);
+    batch.Put(LISTS_DATA_CF_HANDLE, data_key.Encode(), value);
+    *len = parsed_meta_value.count();
+    return db_->Write(default_write_options_, &batch);
   }
   return s;
 }
 
-Status RedisLists::RPushX(const Slice& key, const Slice& value, uint64_t *len){
+Status RedisLists::RPushX(const Slice& key, const Slice& value, uint64_t* len) {
   return Status::OK();
 }
 
