@@ -14,7 +14,7 @@ using Slice = rocksdb::Slice;
 class ListsDataKey {
  public:
   ListsDataKey(const Slice& user_key, int32_t version, uint64_t index)
-    : key_(user_key) start_(space_), version_(version), index_(index) {
+    : key_(user_key), start_(space_), version_(version), index_(index) {
     size_t usize = user_key.size();
     size_t needed =
       sizeof(uint32_t) + usize + sizeof(version_) + sizeof(index_);
@@ -40,11 +40,11 @@ class ListsDataKey {
     version_ = version_;
   }
 
-  void index() const {
+  uint64_t index() const {
     return index_;
   }
 
-  int64_t set_index(uint64_t index) {
+  void set_index(uint64_t index) {
     index_ = index_;
   }
 

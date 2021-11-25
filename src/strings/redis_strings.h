@@ -37,9 +37,10 @@ class RedisStrings : public Redis {
 
   // String Commands
   Status IncrBy(const Slice& key, int64_t value, int64_t* ret);
-  Status MSet(const std::vector<KeyValue>& kvlist);
-  Status Set(const Slice& key, const Slice& value);
-  Status Get(const Slice& key, std::string* value);
+  Status MSet(const std::vector<KeyValue>& kvlist); // DONE
+  Status Set(const Slice& key, const Slice& value); // DONE
+  Status Get(const Slice& key, std::string* value); // DONE
+  Status Strlen(const Slice& key, uint64_t *strlen); // DONE
 };
 
 }  // namespace blackwidow

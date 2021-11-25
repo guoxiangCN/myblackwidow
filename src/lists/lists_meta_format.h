@@ -14,12 +14,11 @@ using Slice = rocksdb::Slice;
 
 static constexpr uint64_t kInitialListsLeftSequence =
   std::numeric_limits<int64_t>::max();
-static constexpr uint64_t kInitialListsRightSequence = kInitialLeftSequence + 1;
+static constexpr uint64_t kInitialListsRightSequence = kInitialListsLeftSequence + 1;
 
 // meta key: | user_key |
 // meta val:
-// |length(8bytes)
-// |version(4byte)|timestamp(4bytes)|LeftSequence(8bytes)|RightSequence(8bytes)|
+// |length(aka listLen)(8bytes)|version(4byte)|timestamp(4bytes)|LeftSequence(8bytes)|RightSequence(8bytes)|
 class ListsMetaValue : public InternalValue {
  public:
   // user_data(length) + version + timestamp + LeftIndex + RightIndex
@@ -197,7 +196,9 @@ class ParsedListsMetaValue : public ParsedInternalValue {
     }
   }
 
-  uint64_t count() const {return count_};
+  uint64_t count() const {
+    return count_;
+  };
 
   void set_count(uint64_t count) {
     count_ = count;
@@ -209,6 +210,10 @@ class ParsedListsMetaValue : public ParsedInternalValue {
       char* dst = value_->data();
       EncodeFixed64(dst, count_);
     }
+  }
+
+  void IncrCount(uint64_t delta) {
+    ModifyCount(delta);
   }
 
    int32_t UpdateVersion() {

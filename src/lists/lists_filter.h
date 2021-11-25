@@ -28,9 +28,9 @@ class ListsMetaFilterFactory : public rocksdb::CompactionFilterFactory {
     return "blackwidow.ListsMetaFilterFactory";
   }
 
-  std::unique_ptr<CompactionFilter> CreateCompactionFilter(
-    const CompactionFilter::Context& context) override {
-    return std::unique_ptr<CompactionFilter>(new ListsMetaFilter()));
+  std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(
+    const rocksdb::CompactionFilter::Context& context) override {
+    return std::unique_ptr<ListsMetaFilter>(new ListsMetaFilter());
   }
 };
 
@@ -59,9 +59,9 @@ class ListsDataFilterFactory : public rocksdb::CompactionFilterFactory {
     return "blackwidow.ListsDataFilterFactory";
   }
 
-  std::unique_ptr<CompactionFilter> CreateCompactionFilter(
-    const CompactionFilter::Context& context) override {
-    return std::unique_ptr<CompactionFilter>(new ListsDataFilter());
+  std::unique_ptr<rocksdb::CompactionFilter> CreateCompactionFilter(
+    const rocksdb::CompactionFilter::Context& context) override {
+    return std::unique_ptr<ListsDataFilter>(new ListsDataFilter());
   }
 };
 

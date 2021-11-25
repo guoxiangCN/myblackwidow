@@ -223,4 +223,16 @@ Status RedisStrings::Get(const Slice& key, std::string* value) {
   return s;
 }
 
+Status RedisStrings::Strlen(const Slice &key, uint64_t *length) {
+  std::string value;
+  auto s = this->Get(key, &value);
+  if(s.ok()) {
+    *length = value.length();
+  } else {
+    *length = 0;
+  }
+  return s;
+}
+
+
 }  // namespace blackwidow
