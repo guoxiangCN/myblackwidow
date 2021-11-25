@@ -1,8 +1,10 @@
 #include "redis_lists.h"
 #include "lists_comparator.h"
 #include "lists_filter.h"
+#include "scope_record_lock.h"
 
 #include <vector>
+#include <string>
 
 namespace blackwidow {
 
@@ -39,7 +41,7 @@ Status RedisLists::Open(const BlackWidowOptions& bw_options,
   // Create a base opts for easy to be copied by meta and data.
   rocksdb::BlockBasedTableOptions base_block_opts(bw_options.table_options);
   base_block_opts.filter_policy =
-    std::make_shared<>(rocksdb::NewBloomFilterPolicy(10, true));
+    std::shared_ptr<const rocksdb::FilterPolicy>(rocksdb::NewBloomFilterPolicy(10, true));
 
   rocksdb::BlockBasedTableOptions meta_block_opts(base_block_opts);
   rocksdb::BlockBasedTableOptions data_block_opts(base_block_opts);
@@ -69,14 +71,14 @@ Status RedisLists::Open(const BlackWidowOptions& bw_options,
   column_families.push_back(rocksdb::ColumnFamilyDescriptor(
     rocksdb::kDefaultColumnFamilyName, meta_cf_opts));
   column_families.push_back(rocksdb::ColumnFamilyDescriptor("data_cf"),
-                            data_cf_opts);
+                            data_cf_opts));
 
   return rocksdb::DB::Open(db_opts, dbpath, column_families, &handles_, &db_);
 }
 
 Status RedisLists::CompactRange(const rocksdb::Slice* begin,
                                 const rocksdb::Slice* end,
-                                const ColumnFamilyType& type = kMetaAndData) {
+                                const ColumnFamilyType& type) {
   if (type == kMeta || type == kMetaAndData) {
     db_->CompactRange(default_compact_range_options_, handles_[0], begin, end);
   }
@@ -86,13 +88,13 @@ Status RedisLists::CompactRange(const rocksdb::Slice* begin,
   return Status::OK();
 }
 
-status redislists::getproperty(const std::string& property, uint64_t* out) {
+Status RedisLists::GetProperty(const std::string& property, uint64_t* out) {
   std::string value;
-  db_->getproperty(handles_[0], property, &value);
-  *out = std::strtoull(value.c_str(), null, 10);
-  db_->getproperty(handles_[1], property, &value);
-  *out += std::strtoull(value.c_str(), null, 10);
-  return status::ok();
+  db_->GetProperty(LISTS_META_CF_HANDLE, property, &value);
+  *out = std::strtoull(value.c_str(), nullptr, 10);
+  db_->GetProperty(LISTS_DATA_CF_HANDLE, property, &value);
+  *out += std::strtoull(value.c_str(), nullptr, 10);
+  return Status::OK();
 }
 
 Status RedisLists::ScanKeyNum(KeyInfo* key_info) {
@@ -111,5 +113,21 @@ Status RedisLists::PKPatternMatchDel(const std::string& pattern, int32_t* ret) {
   return Status::OK();
 }
 
+
+
+Status RedisLists::LPushX(const Slice& key, const Slice& value, uint64_t *len) {
+  std::string meta_value;
+  ScopeRecordLock l(lock_mgr_, key);
+  *len = 0;
+  Status s = db_->Get(default_read_options_, LISTS_META_CF_HANDLE, key, &meta_value);
+  if(s.ok()) {
+    // TODO
+  }
+  return s;
+}
+
+Status RedisLists::RPushX(const Slice& key, const Slice& value, uint64_t *len){
+  return Status::OK();
+}
 
 }  // namespace blackwidow

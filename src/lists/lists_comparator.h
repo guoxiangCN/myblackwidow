@@ -5,6 +5,7 @@
 #include <rocksdb/status.h>
 #include <rocksdb/comparator.h>
 
+
 namespace blackwidow {
 
 class ListDataKeyComparatorImpl : public rocksdb::Comparator {
@@ -14,8 +15,6 @@ public:
     const char* Name() const override {
       return "blackwidow.ListDataKeyComparator";
     }
-
-  
 
 };
 

@@ -14,6 +14,10 @@ class StringsValue : public InternalValue {
  public:
   explicit StringsValue(const Slice& user_value) : InternalValue(user_value) {}
 
+
+  //  timestamp
+  static constexpr size_t kDefaultValueSuffixLength = sizeof(int32_t);
+
   size_t AppendTimestampAndVersion() override {
     char* dst = start_;
     size_t usize = user_value_.size();

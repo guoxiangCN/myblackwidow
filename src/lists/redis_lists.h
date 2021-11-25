@@ -4,6 +4,9 @@
 
 namespace blackwidow {
 
+#define LISTS_META_CF_HANDLE (handles_[0])
+#define LISTS_DATA_CF_HANDLE (handles_[1])
+
 class RedisLists : public Redis {
  public:
   explicit RedisLists(BlackWidow* const bw);
@@ -23,7 +26,10 @@ class RedisLists : public Redis {
 
   // Keys Commands defined in redis
 
+
   // Self List Commands
+  Status LPushX(const Slice &key, const Slice &value, uint64_t *len);
+  Status RPushX(const Slice &key, const Slice &value, uint64_t *len);
 };
 
 }  // namespace blackwidow
