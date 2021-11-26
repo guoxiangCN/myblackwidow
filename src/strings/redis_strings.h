@@ -37,14 +37,27 @@ class RedisStrings : public Redis {
 
   // String Commands
   Status Append(const Slice& key, const Slice& value, int32_t* ret);
-  Status IncrBy(const Slice& key, int64_t value, int64_t* ret);  // TODO
-  Status MSet(const std::vector<KeyValue>& kvlist);              // DONE
-  Status Set(const Slice& key, const Slice& value);              // DONE
-  Status Get(const Slice& key, std::string* value);              // DONE
-  Status Strlen(const Slice& key, uint64_t* strlen);             // DONE
-  Status SetNx(const Slice& key, const Slice& value, int32_t *ret, const int32_t ttl = 0);
-  Status SetXx(const Slice& key, const Slice& value, int32_t *ret, const int32_t ttl = 0);
+  Status BitCount(const Slice& key, uint64_t* ret);
+  Status GetBit(const Slice& key, uint64_t offset, uint32_t* ret);
+  Status Incr(const Slice& key, int64_t* ret);
+  Status IncrBy(const Slice& key, int64_t delta, int64_t* ret);
+  Status Decr(const Slice& key, int64_t* ret);
+  Status DecrBy(const Slice& key, int64_t delta, int64_t* ret);
+  Status MSet(const std::vector<KeyValue>& kvlist);
+  Status Set(const Slice& key, const Slice& value);
+  Status Get(const Slice& key, std::string* value);
+  Status Strlen(const Slice& key, uint64_t* strlen);
+  Status SetNx(const Slice& key,
+               const Slice& value,
+               int32_t* ret,
+               const int32_t ttl = 0);
+  Status SetEx(const Slice& key,
+               const Slice& value,
+               const int32_t ttl);
 
+ private:
+  // AUX Utils
+  Status Aux_Incr(const Slice& key, int64_t delta, int64_t* ret);
 };
 
 }  // namespace blackwidow

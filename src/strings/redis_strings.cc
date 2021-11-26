@@ -185,7 +185,7 @@ Status RedisStrings::Append(const Slice& key,
       StringsValue sv(old_value);
       sv.set_timestamp(timestamp);
       s = db_->Put(default_write_options_, key, sv.Encode());
-      if(s.ok()) {
+      if (s.ok()) {
         *ret = old_value.length();
       }
     }
@@ -199,27 +199,114 @@ Status RedisStrings::Append(const Slice& key,
   return s;
 }
 
-Status RedisStrings::IncrBy(const Slice& key, int64_t value, int64_t* ret) {
-  std::string internal_val;
-  RecordLockGuard g(lock_mgr_, key);
-  Status s = db_->Get(default_read_options_, key, &internal_val);
-  if (s.ok()) {
-    ParsedStringsValue psv(&internal_val);
-    if (psv.IsStale()) {
-      // 初始化为0再incrBy
-
-    } else {
+static uint64_t GetBitCount(const char* data, size_t length) {
+  uint64_t bitcount = 0;
+  for (auto i = 0; i < length; i++) {
+    unsigned char c = static_cast<unsigned char>(data[i]);
+    for (auto j = 0; j < 8; j++) {
+      if ((c >> j) & (unsigned char)0x1) {
+        bitcount++;
+      }
     }
-  } else if (s.IsNotFound()) {
-    // 初始化为0再incrBy
-    std::string tmp = std::to_string(value);
-    StringsValue sv(tmp);
-    s = db_->Put(default_write_options_, key, sv.Encode());
-    if (s.ok()) {
-      *ret = value;
+  }
+  return bitcount;
+}
+
+Status RedisStrings::BitCount(const Slice& key, uint64_t* ret) {
+  std::string value;
+  ScopeRecordLock l(lock_mgr_, key);
+  *ret = 0;
+  Status s = db_->Get(default_read_options_, key, &value);
+  if (s.ok()) {
+    ParsedStringsValue parsed_strings_value(&value);
+    Slice user_value = parsed_strings_value.user_value();
+    if (!parsed_strings_value.IsStale() && user_value.size() > 0) {
+      *ret = GetBitCount(user_value.data(), user_value.size());
     }
   }
   return s;
+}
+
+
+Status RedisStrings::GetBit(const Slice& key, uint64_t offset, uint32_t* ret) {
+  std::string value;
+  ScopeRecordLock l(lock_mgr_, key);
+  *ret = 0;
+  Status s = db_->Get(default_read_options_, key, &value);
+  if (s.ok()) {
+    ParsedStringsValue parsed_strings_value(&value);
+    Slice user_value = parsed_strings_value.user_value();
+    if (!parsed_strings_value.IsStale() && (user_value.size() * 8) > offset) {
+      const char* data = user_value.data();
+      const uint64_t pos = offset / 8;
+      const uint64_t sft = offset % 8;
+      *ret = (static_cast<unsigned char>(data[pos]) &
+              ((unsigned char)0x1 << (7 - sft))) != 0;
+    }
+  }
+  return s;
+}
+
+Status RedisStrings::Aux_Incr(const Slice& key, int64_t delta, int64_t* ret) {
+  RecordLockGuard g(lock_mgr_, key);
+  std::string old_value;
+  int32_t timestamp = 0;
+  int64_t old_num = 0;
+  Status s;
+  do {
+    s = db_->Get(default_read_options_, key, &old_value);
+    if (s.ok()) {
+      ParsedStringsValue parsed_strings_value(&old_value);
+      if (parsed_strings_value.IsStale()) {
+        break;
+      } else {
+        timestamp = parsed_strings_value.timestamp();
+        std::string old_num_str = parsed_strings_value.value().ToString();
+        char* endptr = nullptr;
+        old_num = std::strtoll(old_num_str.c_str(), &endptr, 10);
+        if (*endptr != 0) {
+          return Status::InvalidArgument(
+            "Cannot incy or decy againest a non-number string");
+        }
+      }
+    } else if (s.IsNotFound()) {
+      break;
+    } else {
+      // Error on DB::Get
+      *ret = 0;
+      return s;
+    }
+  } while (false);
+
+  if ((old_num > 0 && delta > 0 && (old_num + delta) < old_num) ||
+      (old_num < 0 && delta < 0 && (old_num + delta) > old_num)) {
+    return Status::InvalidArgument("Overflow");
+  }
+
+  int64_t new_num = old_num + delta;
+  StringsValue strings_value(std::to_string(new_num));
+  strings_value.set_timestamp(timestamp);
+  s = db_->Put(default_write_options_, key, strings_value.Encode());
+  if (s.ok()) {
+    *ret = new_num;
+  }
+  return s;
+}
+
+Status RedisStrings::Incr(const Slice& key, int64_t* ret) {
+  return this->Aux_Incr(key, 1, ret);
+}
+
+Status RedisStrings::IncrBy(const Slice& key, int64_t delta, int64_t* ret) {
+  return this->Aux_Incr(key, delta, ret);
+}
+
+Status RedisStrings::Decr(const Slice& key, int64_t* ret) {
+  return this->Aux_Incr(key, -1, ret);
+}
+
+Status RedisStrings::DecrBy(const Slice& key, int64_t delta, int64_t* ret) {
+  return this->Aux_Incr(key, delta * (-1), ret);
 }
 
 Status RedisStrings::MSet(const std::vector<KeyValue>& kvlist) {
@@ -303,11 +390,16 @@ Status RedisStrings::SetNx(const Slice& key,
   }
   return s;
 }
-Status RedisStrings::SetXx(const Slice& key,
+
+Status RedisStrings::SetEx(const Slice& key,
                            const Slice& value,
-                           int32_t* ret,
                            const int32_t ttl) {
-  return Status::OK();
+  if (ttl <= 0) {
+    return Status::InvalidArgument("invalid expire time");
+  }
+  StringsValue sv(value);
+  sv.SetRelativeTimestamp(ttl);
+  return db_->Put(default_write_options_, key, sv.Encode());
 }
 
 
