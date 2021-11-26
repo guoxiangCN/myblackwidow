@@ -1,9 +1,12 @@
 #include "redis_strings.h"
 #include <iostream>
 #include <thread>
+#include <chrono>
 
 #include "gtest/gtest.h"
 #include "testing_util.h"
+
+using namespace std::chrono_literals;
 
 namespace {
   static std::string kTestingPath = "./testdb_strings";
@@ -142,6 +145,71 @@ TEST(TestStrlen, RedisStringsTest) {
   EXPECT_EQ(0, length);
 }
 
+TEST(TestSetNx, RedisStringsTest) {
+  blackwidow::RedisStrings* redis = nullptr;
+
+  testing::Defer df([&]() {
+    if (redis != nullptr)
+      delete redis;
+     system(kCmdDeleteTestingPath);
+  });
+
+  redis = new blackwidow::RedisStrings(nullptr);
+  blackwidow::BlackWidowOptions opts;
+  opts.options.create_if_missing = true;
+  opts.options.error_if_exists = false;
+  blackwidow::Status s = redis->Open(opts, kTestingPath);
+  EXPECT_TRUE(s.ok());
+
+  int32_t ret;
+  s = redis->SetNx("KEY_NOT_EXISTS", "@QAQ@1", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, ret);
+
+  s = redis->SetNx("KEY_NOT_EXISTS", "@QAQ@2", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(0, ret);
+
+  /* 设置过期一秒后再setNx */
+  s = redis->Expire("KEY_NOT_EXISTS", 1);
+  EXPECT_TRUE(s.ok());
+  std::this_thread::sleep_for(2s);
+  s = redis->SetNx("KEY_NOT_EXISTS", "@QAQ@3", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, ret);
+}
+
+TEST(TestAppend, RedisStringsTest) {
+   blackwidow::RedisStrings* redis = nullptr;
+
+  testing::Defer df([&]() {
+    if (redis != nullptr)
+      delete redis;
+     system(kCmdDeleteTestingPath);
+  });
+
+  redis = new blackwidow::RedisStrings(nullptr);
+  blackwidow::BlackWidowOptions opts;
+  opts.options.create_if_missing = true;
+  opts.options.error_if_exists = false;
+  blackwidow::Status s = redis->Open(opts, kTestingPath);
+  EXPECT_TRUE(s.ok());
+
+  int32_t ret;
+  std::string value;
+
+  s = redis->Append("Company", "JOYY", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(4, ret);
+
+  s = redis->Append("Company", "-SYYY", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(9, ret);
+
+  s = redis->Get("Company", &value);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ("JOYY-SYYY", value);
+}
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

@@ -36,11 +36,15 @@ class RedisStrings : public Redis {
   void ScanDatabase();
 
   // String Commands
-  Status IncrBy(const Slice& key, int64_t value, int64_t* ret);
-  Status MSet(const std::vector<KeyValue>& kvlist); // DONE
-  Status Set(const Slice& key, const Slice& value); // DONE
-  Status Get(const Slice& key, std::string* value); // DONE
-  Status Strlen(const Slice& key, uint64_t *strlen); // DONE
+  Status Append(const Slice& key, const Slice& value, int32_t* ret);
+  Status IncrBy(const Slice& key, int64_t value, int64_t* ret);  // TODO
+  Status MSet(const std::vector<KeyValue>& kvlist);              // DONE
+  Status Set(const Slice& key, const Slice& value);              // DONE
+  Status Get(const Slice& key, std::string* value);              // DONE
+  Status Strlen(const Slice& key, uint64_t* strlen);             // DONE
+  Status SetNx(const Slice& key, const Slice& value, int32_t *ret, const int32_t ttl = 0);
+  Status SetXx(const Slice& key, const Slice& value, int32_t *ret, const int32_t ttl = 0);
+
 };
 
 }  // namespace blackwidow

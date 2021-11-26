@@ -20,12 +20,27 @@ class StringsFilter : public rocksdb::CompactionFilter {
               const rocksdb::Slice& existing_value,
               std::string* new_value,
               bool* value_changed) const override {
+
+    bool should_filter = false;
     int64_t unix_time;
     rocksdb::Env::Default()->GetCurrentTime(&unix_time);
 
-    // TODO
+    ParsedStringsValue parsed_value(existing_value);
+    if(parsed_value.timestamp() != 0 && parsed_value.timestamp() < unix_time) {
+      should_filter = true;
+    }
 
-    return false;
+    Trace(
+      "[StringsCompactionFilter]-UserKey: %s, UserValue: %s, Timestamp: %d, CurrentTime: %ld, "
+      "ShouldFilter: %d", 
+      key.ToString().c_str(), 
+      // parsed_value.value().ToString().c_str(), 
+      "*****",
+      parsed_value.timestamp(), 
+      unix_time, 
+      should_filter);
+
+    return should_filter;
   }
 };
 
