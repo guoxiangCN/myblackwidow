@@ -7,8 +7,8 @@ namespace gr{
 using VertexHandle = uint64_t;
 
 enum EdgeDirection {
-  kSingle,
-  kBothWay,
+  kUniDirection,
+  kBiDirection,
 };
 
 template <size_t kNumVertex = 10>
@@ -44,9 +44,9 @@ class Graph {
   void AddEdge(const VertexHandle& r,
                const VertexHandle& c,
                uint64_t weight,
-               EdgeDirection direction = kBothWay) {
+               EdgeDirection direction = kBiDirection) {
     edges_[r][c] = weight;
-    if (direction == kBothWay) {
+    if (direction == kBiDirection) {
       edges_[c][r] = weight;
     }
   }
