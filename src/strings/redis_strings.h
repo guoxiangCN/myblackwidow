@@ -38,14 +38,15 @@ class RedisStrings : public Redis {
   // String Commands
   Status Append(const Slice& key, const Slice& value, int32_t* ret);
   Status BitCount(const Slice& key, uint64_t* ret);
+  Status SetBit(const Slice& key, uint64_t offset, uint32_t newbit, uint32_t *oldbit);
   Status GetBit(const Slice& key, uint64_t offset, uint32_t* ret);
   Status Incr(const Slice& key, int64_t* ret);
   Status IncrBy(const Slice& key, int64_t delta, int64_t* ret);
+  Status IncrByFloat(const Slice &key, )
   Status Decr(const Slice& key, int64_t* ret);
   Status DecrBy(const Slice& key, int64_t delta, int64_t* ret);
   Status MSet(const std::vector<KeyValue>& kvlist);
   Status Set(const Slice& key, const Slice& value);
-  Status Get(const Slice& key, std::string* value);
   Status Strlen(const Slice& key, uint64_t* strlen);
   Status SetNx(const Slice& key,
                const Slice& value,
@@ -54,6 +55,8 @@ class RedisStrings : public Redis {
   Status SetEx(const Slice& key,
                const Slice& value,
                const int32_t ttl);
+  Status Get(const Slice& key, std::string* value);
+  Status GetSet(const Slice& key, const Slice& value, std::string* old);
 
  private:
   // AUX Utils

@@ -227,6 +227,59 @@ Status RedisStrings::BitCount(const Slice& key, uint64_t* ret) {
   return s;
 }
 
+Status RedisStrings::SetBit(const Slice& key,
+                            uint64_t offset,
+                            uint32_t newbit,
+                            uint32_t* oldbit) {
+  if (newbit != 0 && newbit != 1)
+    return Status::InvalidArgument("bit out of range");
+
+  std::string value;
+  ScopeRecordLock l(lock_mgr_, key);
+  const char mask = (0x1 << (7 - (offset % 8)));
+  Status s = db_->Get(default_read_options_, key, &value);
+  if (s.ok()) {
+    ParsedStringsValue parsed_strings_value(&value);
+    if (!parsed_strings_value.IsStale()) {
+      int32_t timestamp = parsed_strings_value.timestamp();
+      Slice user_value = parsed_strings_value.user_value();
+      char* data = const_cast<char*>(user_value.data());
+      size_t old_length = user_value.size();
+
+      parsed_strings_value.StripSuffix();
+      if (old_length * 8 <= offset) {
+        size_t new_length = ((offset + (8 - 1)) & (~(8 - 1))) / 8;
+        value.resize(new_length);
+      }
+
+      *oldbit = ((data[offset/8] & mask) != 0);
+      if (newbit == 0) {
+          data[offset / 8] &= (~mask);
+      } else {
+          data[offset / 8] |= mask;
+      }
+
+      StringsValue sv(Slice(value.data(), value.size()));
+      sv.set_timestamp(timestamp);
+      return db_->Put(default_write_options_, key, sv.Encode());
+    }
+  } else if (!s.IsNotFound()) {
+    return s;
+  }
+
+  // NotFound or Stale Already.
+  *oldbit = 0;
+  uint64_t alloc_bytes = offset / 8 + 1;
+  value.assign(alloc_bytes, 0);
+  char* const data = value.data();
+  if (newbit == 0) {
+    data[offset / 8] &= (~mask);
+  } else {
+    data[offset / 8] |= mask;
+  }
+  StringsValue sv(value);
+  return db_->Put(default_write_options_, key, sv.Encode());
+}
 
 Status RedisStrings::GetBit(const Slice& key, uint64_t offset, uint32_t* ret) {
   std::string value;
@@ -345,6 +398,25 @@ Status RedisStrings::Get(const Slice& key, std::string* value) {
     value->clear();
   }
   return s;
+}
+
+Status RedisStrings::GetSet(const Slice& key,
+                            const Slice& value,
+                            std::string* old) {
+  ScopeRecordLock l(lock_mgr_, key);
+  auto s = db_->Get(default_read_options_, key, old);
+  if (s.ok()) {
+    ParsedStringsValue parsed_old_value(old);
+    if (parsed_old_value.IsStale()) {
+      old->clear();
+    } else {
+      parsed_old_value.StripSuffix();
+    }
+  } else if (!s.IsNotFound()) {
+    return s;
+  }
+  StringsValue sv(value);
+  return db_->Put(default_write_options_, key, sv.Encode());
 }
 
 Status RedisStrings::Strlen(const Slice& key, uint64_t* length) {
