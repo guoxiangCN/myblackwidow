@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+namespace gr{
 using VertexHandle = uint64_t;
 
 enum EdgeDirection {
@@ -64,14 +65,15 @@ class Graph {
   uint64_t edges_[kNumVertex][kNumVertex];
 };
 
+} // namespace gr
 
 int main(int argc, char** argv) {
-  Graph<5> graph;
-  VertexHandle a = graph.AddVertex("A");
-  VertexHandle b = graph.AddVertex("B");
-  VertexHandle c = graph.AddVertex("C");
-  VertexHandle d = graph.AddVertex("D");
-  VertexHandle e = graph.AddVertex("E");
+  gr::Graph<5> graph;
+  gr::VertexHandle a = graph.AddVertex("A");
+  gr::VertexHandle b = graph.AddVertex("B");
+  gr::VertexHandle c = graph.AddVertex("C");
+  gr::VertexHandle d = graph.AddVertex("D");
+  gr::VertexHandle e = graph.AddVertex("E");
 
   graph.AddEdge(a, b, 1);
   graph.AddEdge(a, c, 1);
