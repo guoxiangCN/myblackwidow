@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-template <size_t kNumVertex>
+template <size_t kNumVertex=10>
 class Graph {
  public:
   using VertexHandle = uint64_t;
@@ -57,11 +57,11 @@ class Graph {
 
 int main(int argc, char** argv) {
   Graph<5> graph;
-  Graph::VertexHandle a = graph.AddVertex("A");
-  Graph::VertexHandle b = graph.AddVertex("B");
-  Graph::VertexHandle c = graph.AddVertex("C");
-  Graph::VertexHandle d = graph.AddVertex("D");
-  Graph::VertexHandle e = graph.AddVertex("E");
+  Graph<>::VertexHandle a = graph.AddVertex("A");
+  Graph<>::VertexHandle b = graph.AddVertex("B");
+  Graph<>::VertexHandle c = graph.AddVertex("C");
+  Graph<>::VertexHandle d = graph.AddVertex("D");
+  Graph<>::VertexHandle e = graph.AddVertex("E");
 
   graph.AddEdge(a, b, 1);
   graph.AddEdge(a, c, 1);
