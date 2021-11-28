@@ -3,11 +3,16 @@
 #include <string>
 #include <vector>
 
-template <size_t kNumVertex=10>
+using VertexHandle = uint64_t;
+
+enum EdgeDirection {
+  kSingle,
+  kBothWay,
+};
+
+template <size_t kNumVertex = 10>
 class Graph {
  public:
-  using VertexHandle = uint64_t;
-
   Graph() {
     vertexs_.reserve(kNumVertex);
     for (auto& x : edges_) {
@@ -35,9 +40,14 @@ class Graph {
     return edges_[pos];
   }
 
-  void AddEdge(const VertexHandle &r, const VertexHandle & c, uint64_t weight) {
+  void AddEdge(const VertexHandle& r,
+               const VertexHandle& c,
+               uint64_t weight,
+               EdgeDirection direction = kBothWay) {
     edges_[r][c] = weight;
-    edges_[c][r] = weight;
+    if (direction == kBothWay) {
+      edges_[c][r] = weight;
+    }
   }
 
   void Display() {
@@ -57,11 +67,11 @@ class Graph {
 
 int main(int argc, char** argv) {
   Graph<5> graph;
-  Graph<>::VertexHandle a = graph.AddVertex("A");
-  Graph<>::VertexHandle b = graph.AddVertex("B");
-  Graph<>::VertexHandle c = graph.AddVertex("C");
-  Graph<>::VertexHandle d = graph.AddVertex("D");
-  Graph<>::VertexHandle e = graph.AddVertex("E");
+  VertexHandle a = graph.AddVertex("A");
+  VertexHandle b = graph.AddVertex("B");
+  VertexHandle c = graph.AddVertex("C");
+  VertexHandle d = graph.AddVertex("D");
+  VertexHandle e = graph.AddVertex("E");
 
   graph.AddEdge(a, b, 1);
   graph.AddEdge(a, c, 1);
