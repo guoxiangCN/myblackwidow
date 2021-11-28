@@ -6,6 +6,8 @@
 template <size_t kNumVertex>
 class Graph {
  public:
+  using VertexHandle = uint64_t;
+
   Graph() {
     vertexs_.reserve(kNumVertex);
     for (auto& x : edges_) {
@@ -15,7 +17,7 @@ class Graph {
     }
   }
 
-  uint64_t AddVertex(const std::string& vertex) {
+  VertexHandle AddVertex(const std::string& vertex) {
     auto it = std::find(vertexs_.begin(), vertexs_.end(), vertex);
     if (it != vertexs_.end()) {
       return it - vertexs_.begin();
@@ -33,7 +35,7 @@ class Graph {
     return edges_[pos];
   }
 
-  void AddEdge(size_t r, size_t c, uint64_t weight) {
+  void AddEdge(const VertexHandle &r, const VertexHandle & c, uint64_t weight) {
     edges_[r][c] = weight;
     edges_[c][r] = weight;
   }
@@ -55,11 +57,11 @@ class Graph {
 
 int main(int argc, char** argv) {
   Graph<5> graph;
-  uint64_t a = graph.AddVertex("A");
-  uint64_t b = graph.AddVertex("B");
-  uint64_t c = graph.AddVertex("C");
-  uint64_t d = graph.AddVertex("D");
-  uint64_t e = graph.AddVertex("E");
+  Graph::VertexHandle a = graph.AddVertex("A");
+  Graph::VertexHandle b = graph.AddVertex("B");
+  Graph::VertexHandle c = graph.AddVertex("C");
+  Graph::VertexHandle d = graph.AddVertex("D");
+  Graph::VertexHandle e = graph.AddVertex("E");
 
   graph.AddEdge(a, b, 1);
   graph.AddEdge(a, c, 1);
