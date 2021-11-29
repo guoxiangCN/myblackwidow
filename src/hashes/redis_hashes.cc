@@ -1,9 +1,9 @@
 #include "redis_hashes.h"
+#include "hashes_filter.h"
 #include "hashes_format.h"
 #include "scope_record_lock.h"
 
 namespace blackwidow {
-
 
 RedisHashes::RedisHashes(BlackWidow* const bw) : Redis(bw, kHashes) {
   // DO NOTHING
@@ -32,15 +32,16 @@ Status RedisHashes::Open(const BlackWidowOptions& bw_options,
   // Reopen
   rocksdb::DBOptions db_opt(bw_options.options);
   rocksdb::ColumnFamilyOptions meta_cf_opt(bw_options.options);
+  meta_cf_opt.compaction_filter_factory.reset(new HashesMetaFilterFactory());
+
   rocksdb::ColumnFamilyOptions data_cf_opt(bw_options.options);
-
-
+  data_cf_opt.compaction_filter_factory.reset(new HashesDataFilterFactory(&db_, &handles_));
 
   std::vector<rocksdb::ColumnFamilyOptions> cf_option_list;
-  cf_option_list.push_back(rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName,cf_opt));
-  cf_option_list.push_back(rocksdb::ColumnFamilyDescriptor("data_cf", cf_opt));
+  // cf_option_list.push_back(rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName,cf_opt));
+  // cf_option_list.push_back(rocksdb::ColumnFamilyDescriptor("data_cf", cf_opt));
 
-  return rocksdb::DB::Open(db_opt, dbpath, cf_option_list, handles_, &db_);
+  // return rocksdb::DB::Open(db_opt, dbpath, cf_option_list, handles_, &db_);
 }
 
 
@@ -67,7 +68,7 @@ Status RedisHashes::PKPatternMatchDel(const std::string& pattern,
                                       int32_t* ret) {}
 
 
-Status RedisHashes::RedisHashes::Del(const Slice& key) {
+Status RedisHashes::Del(const Slice& key) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, &meta_value);
@@ -91,7 +92,7 @@ Status RedisHashes::RedisHashes::Del(const Slice& key) {
   return s;
 }
 
-Status RedisHashes::RedisHashes::Expire(const Slice& key, int32_t ttl) {
+Status RedisHashes::Expire(const Slice& key, int32_t ttl) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
   Status s =
@@ -110,7 +111,7 @@ Status RedisHashes::RedisHashes::Expire(const Slice& key, int32_t ttl) {
   return s;
 }
 
-Status RedisHashes::RedisHashes::ExpireAt(const Slice& key, int32_t timestamp) {
+Status RedisHashes::ExpireAt(const Slice& key, int32_t timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
   Status s =
@@ -136,7 +137,7 @@ Status RedisHashes::RedisHashes::ExpireAt(const Slice& key, int32_t timestamp) {
   return s;
 }
 
-Status RedisHashes::RedisHashes::Persist(const Slice& key) {
+Status RedisHashes::Persist(const Slice& key) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
   Status s =
@@ -155,7 +156,7 @@ Status RedisHashes::RedisHashes::Persist(const Slice& key) {
   return s;
 }
 
-Status RedisHashes::RedisHashes::TTL(const Slice& key, int64_t* timestamp) {
+Status RedisHashes::TTL(const Slice& key, int64_t* timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
   Status s =
@@ -187,7 +188,7 @@ Status RedisHashes::RedisHashes::TTL(const Slice& key, int64_t* timestamp) {
 }
 
 
-Status RedisHashes::RedisHashes::HLen(const Slice& key, uint32_t* len) {
+Status RedisHashes::HLen(const Slice& key, uint32_t* len) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
   *len = 0;

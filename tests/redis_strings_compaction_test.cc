@@ -47,13 +47,19 @@ TEST(TestCompaction, StringCompactionTest) {
     "ASDSDADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDaaaaaaaaaaaaaaaaaawdsfaa1234"
     "faaaaaaaaaqqqqqqqqqqwwww"; /* 1kb */
 
-  // for (auto i = 0; i < 1024 * 1024; i++) {
-  //   std::snprintf(keybuf, 1024, "%9d", i);
-  //   s = redis->Set(keybuf, bigval);
-  //   EXPECT_TRUE(s.ok());
-  // }
+  for (auto i = 0; i < 1024 * 1024; i++) {
+    std::snprintf(keybuf, 1024, "%9d", i);
+    s = redis->Set(keybuf, bigval);
+    EXPECT_TRUE(s.ok());
+  }
 
-  //  for (auto i = 0; i < 1024 * 1024; i++) {
+  for (auto i = 0; i < 1024 * 1024; i++) {
+    std::snprintf(keybuf, 1024, "%9d", i);
+    s = redis->Set(keybuf, "version2+sdfsdffsdfsf");
+    EXPECT_TRUE(s.ok());
+  }
+
+  // for (auto i = 0; i < 1024 * 1024; i++) {
   //   std::snprintf(keybuf, 1024, "%9d", i);
   //   s = redis->Expire(keybuf, 3);
   //   EXPECT_TRUE(s.ok());

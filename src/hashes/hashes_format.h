@@ -1,7 +1,7 @@
 #pragma once
 
-#include "coding.h"
 #include "base_value_format.h"
+#include "coding.h"
 #include "rocksdb/env.h"
 #include <cassert>
 
@@ -12,7 +12,7 @@
 // FieldVal: |FieldValue|
 namespace blackwidow {
 
-class HashesMetaValue :  public InternalValue {
+class HashesMetaValue : public InternalValue {
  public:
   explicit HashesMetaValue(uint32_t hash_size)
     : InternalValue(Slice("****")), hash_size_(hash_size) {
@@ -54,7 +54,6 @@ class HashesMetaValue :  public InternalValue {
  private:
   uint32_t hash_size_;
 };
-
 
 class ParsedHashesMetaValue : public ParsedInternalValue {
  public:
@@ -149,32 +148,32 @@ class HashesDataKey {
   const Slice Encode() {
     size_t needed =
       sizeof(uint32_t) + key_.size() + sizeof(int32_t) + field_.size();
-      if(needed > sizeof(space_)) {
-        start_ = new char[needed];
-      }
-      char* ptr = start_;
+    if (needed > sizeof(space_)) {
+      start_ = new char[needed];
+    }
+    char* ptr = start_;
 
-      // Key size
-      EncodeFixed32(ptr, static_cast<uint32_t>(key_.size()));
-      ptr += sizeof(uint32_t);
+    // Key size
+    EncodeFixed32(ptr, static_cast<uint32_t>(key_.size()));
+    ptr += sizeof(uint32_t);
 
-      // key (这里兼容空key)
-      if(key_.size() > 0) {
-        memcpy(ptr, key_.data(), key_.size());
-        ptr += key_.size();
-      }
+    // key (这里兼容空key)
+    if (key_.size() > 0) {
+      memcpy(ptr, key_.data(), key_.size());
+      ptr += key_.size();
+    }
 
-      // version
-      EncodeFixed32(ptr, static_cast<uint32_t>(version_));
-      ptr += sizeof(int32_t);
+    // version
+    EncodeFixed32(ptr, static_cast<uint32_t>(version_));
+    ptr += sizeof(int32_t);
 
-      // field (这里兼容空field)
-      if(field_.size() > 0) {
-        memcpy(ptr, field_.data(), field_.size());
-        ptr += field_.size();
-      }
+    // field (这里兼容空field)
+    if (field_.size() > 0) {
+      memcpy(ptr, field_.data(), field_.size());
+      ptr += field_.size();
+    }
 
-      return Slice(start_, ptr-start_);
+    return Slice(start_, ptr - start_);
   }
 
  private:
@@ -185,4 +184,52 @@ class HashesDataKey {
   const int32_t version_;
 };
 
+// FieldKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Field|
+// FieldVal: |FieldValue|
+class ParsedHashesDataKey {
+ public:
+  // use this constructor in CompactionFilter
+  explicit ParsedHashesDataKey(const Slice& raw_key) {
+    assert(raw_key.size() >= (sizeof(uint32_t) + sizeof(int32_t)));
+    const char* ptr = raw_key.data();
+    key_size_ = DecodeFixed32(ptr);
+    ptr += sizeof(uint32_t);
+
+    // 兼容key为空
+    if (key_size_ > 0) {
+      user_key_ = Slice(ptr, key_size_);
+      ptr += key_size_;
+    }
+
+    version_ = static_cast<int32_t>(DecodeFixed32(ptr));
+    ptr += sizeof(int32_t);
+
+    // 兼容field为空
+    if(raw_key.size() > (ptr - raw_key.data())) {
+      field_ = Slice(ptr, raw_key.size() - (ptr-raw_key.data()));
+    }
+  }
+
+  const uint32_t key_size() const {
+    return key_size_;
+  }
+
+  const Slice user_key() const {
+    return user_key_;
+  }
+
+  int32_t version() const {
+    return version_;
+  }
+
+  const Slice field() const {
+    return field_;
+  }
+
+ private:
+  uint32_t key_size_;
+  Slice user_key_;
+  int32_t version_;
+  Slice field_;
+};
 }  // namespace blackwidow
