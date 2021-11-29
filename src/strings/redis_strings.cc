@@ -283,7 +283,6 @@ Status RedisStrings::SetBit(const Slice& key,
 
 Status RedisStrings::GetBit(const Slice& key, uint64_t offset, uint32_t* ret) {
   std::string value;
-  ScopeRecordLock l(lock_mgr_, key);
   *ret = 0;
   Status s = db_->Get(default_read_options_, key, &value);
   if (s.ok()) {
@@ -384,7 +383,6 @@ Status RedisStrings::Set(const Slice& key, const Slice& value) {
 }
 
 Status RedisStrings::Get(const Slice& key, std::string* value) {
-  ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, value);
   if (s.ok()) {
     ParsedStringsValue psv(value);

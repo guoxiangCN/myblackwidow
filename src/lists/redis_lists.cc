@@ -135,9 +135,7 @@ Status RedisLists::TTL(const Slice& key, int64_t* timestamp) {
 Status RedisLists::LLen(const Slice& key, uint64_t* len) {
   *len = 0;
   std::string meta_value;
-  ScopeRecordLock l(lock_mgr_, key);
-  Status s =
-    db_->Get(default_read_options_, LISTS_META_CF_HANDLE, key, &meta_value);
+  Status s = db_->Get(default_read_options_, LISTS_META_CF_HANDLE, key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_meta_value(&meta_value);
     if (parsed_meta_value.IsStale()) {

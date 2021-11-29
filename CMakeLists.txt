@@ -17,6 +17,7 @@ include_directories("${PROJECT_SOURCE_DIR}/tests")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/strings")
 include_directories("${PROJECT_SOURCE_DIR}/src/lists")
+include_directories("${PROJECT_SOURCE_DIR}/src/hashes")
 include_directories("${PROJECT_SOURCE_DIR}/deps/gtest/googletest/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/benchmark/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/rocksdb/include")
@@ -38,5 +39,6 @@ add_library(myblackwidow STATIC
     src/build_version.cc 
     src/strings/redis_strings.cc
     src/lists/redis_lists.cc
+    src/hashes/redis_hashes.cc
 )
 target_link_libraries(myblackwidow rocksdb)

@@ -42,7 +42,7 @@ class RedisStrings : public Redis {
   Status GetBit(const Slice& key, uint64_t offset, uint32_t* ret);
   Status Incr(const Slice& key, int64_t* ret);
   Status IncrBy(const Slice& key, int64_t delta, int64_t* ret);
-  Status IncrByFloat(const Slice &key, )
+  // Status IncrByFloat(const Slice &key, )
   Status Decr(const Slice& key, int64_t* ret);
   Status DecrBy(const Slice& key, int64_t delta, int64_t* ret);
   Status MSet(const std::vector<KeyValue>& kvlist);
