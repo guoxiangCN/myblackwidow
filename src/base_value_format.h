@@ -36,6 +36,10 @@ class InternalValue {
     version_ = version;
   }
 
+  int32_t version() const {
+    return version_;
+  }
+
   // version + timestamp
   static constexpr size_t kDefaultValueSuffixLength = sizeof(int32_t) * 2;
 

@@ -1,5 +1,7 @@
 #pragma once
-#include "../redis.h"
+
+#include "redis.h"
+#include "rocksdb/db.h"
 
 namespace blackwidow {
 
@@ -14,8 +16,8 @@ class RedisHashes : public Redis {
   // Common Commands
   Status Open(const BlackWidowOptions& bw_options,
               const std::string& dbpath) override;
-  Status CompactRange(const rocksdb::Slice* begin,
-                      const rocksdb::Slice* end,
+  Status CompactRange(const Slice* begin,
+                      const Slice* end,
                       const ColumnFamilyType& type = kMetaAndData) override;
   Status GetProperty(const std::string& property, uint64_t* out) override;
   Status ScanKeyNum(KeyInfo* key_info) override;
@@ -36,6 +38,9 @@ class RedisHashes : public Redis {
   // Hash Commands
   Status HLen(const Slice& key, uint32_t* len);
   Status HExists(const Slice& key, const Slice& field);
+  Status HSet(const Slice& key, const Slice& filed, const Slice& value);
+  Status HSetNx(const Slice& key, const Slice& filed, const Slice& value);
+  
 };
 
 

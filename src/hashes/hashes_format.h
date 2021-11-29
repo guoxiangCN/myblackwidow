@@ -1,17 +1,18 @@
 #pragma once
 
-#include "../base_value_format.h"
+#include "coding.h"
+#include "base_value_format.h"
 #include "rocksdb/env.h"
 #include <cassert>
 
 // MetaKey:  |UserKey|
 // MetaVal:  |HashSize(4bytes)|Version(4byte)|Timestamp(4byte)|
 
-// FieldKey: |KeySize|UserKey|Version|Field|
+// FieldKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Field|
 // FieldVal: |FieldValue|
 namespace blackwidow {
 
-class HashesMetaValue : InternalValue {
+class HashesMetaValue :  public InternalValue {
  public:
   explicit HashesMetaValue(uint32_t hash_size)
     : InternalValue(Slice("****")), hash_size_(hash_size) {
@@ -104,14 +105,14 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
   }
 
   void SetVersionToValue() override {
-    if(value_) {
+    if (value_) {
       char* ptr = const_cast<char*>(value_->data());
       ptr += sizeof(uint32_t);
       EncodeFixed32(ptr, version_);
     }
   }
   void SetTimestampToValue() override {
-    if(value_) {
+    if (value_) {
       char* ptr = const_cast<char*>(value_->data());
       ptr += sizeof(uint32_t) + sizeof(int32_t);
       EncodeFixed32(ptr, timestamp_);
@@ -134,5 +135,54 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
   uint32_t hash_size_;
 };
 
+class HashesDataKey {
+ public:
+  explicit HashesDataKey(const Slice& key, const Slice& field, int32_t version)
+    : key_(key), field_(field), version_(version), start_(space_) {}
+
+  virtual ~HashesDataKey() {
+    if (start_ != space_) {
+      delete[] start_;
+    }
+  }
+
+  const Slice Encode() {
+    size_t needed =
+      sizeof(uint32_t) + key_.size() + sizeof(int32_t) + field_.size();
+      if(needed > sizeof(space_)) {
+        start_ = new char[needed];
+      }
+      char* ptr = start_;
+
+      // Key size
+      EncodeFixed32(ptr, static_cast<uint32_t>(key_.size()));
+      ptr += sizeof(uint32_t);
+
+      // key (这里兼容空key)
+      if(key_.size() > 0) {
+        memcpy(ptr, key_.data(), key_.size());
+        ptr += key_.size();
+      }
+
+      // version
+      EncodeFixed32(ptr, static_cast<uint32_t>(version_));
+      ptr += sizeof(int32_t);
+
+      // field (这里兼容空field)
+      if(field_.size() > 0) {
+        memcpy(ptr, field_.data(), field_.size());
+        ptr += field_.size();
+      }
+
+      return Slice(start_, ptr-start_);
+  }
+
+ private:
+  char space_[250];  // reversed for short keys
+  char* start_;
+  const Slice key_;
+  const Slice field_;
+  const int32_t version_;
+};
 
 }  // namespace blackwidow

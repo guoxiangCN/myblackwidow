@@ -14,8 +14,8 @@ class LockMgr {
  public:
   LockMgr(const LockMgr&) = delete;
   LockMgr(const LockMgr&&) = delete;
-  LockMgr& operator==(const LockMgr&) = delete;
-  LockMgr& operator==(const LockMgr&&) = delete;
+  LockMgr& operator=(const LockMgr&) = delete;
+  LockMgr& operator=(const LockMgr&&) = delete;
 
   LockMgr(size_t default_num_stripes,
           int64_t max_num_locks,

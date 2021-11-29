@@ -31,8 +31,9 @@ class StringsFilter : public rocksdb::CompactionFilter {
     }
 
     Trace(
-      "[StringsCompactionFilter]-UserKey: %s, UserValue: %s, Timestamp: %d, CurrentTime: %ld, "
+      "[StringsCompactionFilter] Level-%d, UserKey: %s, UserValue: %s, Timestamp: %d, CurrentTime: %ld, "
       "ShouldFilter: %d", 
+      level,
       key.ToString().c_str(), 
       // parsed_value.value().ToString().c_str(), 
       "*****",
