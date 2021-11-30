@@ -10,15 +10,17 @@ class ScopeSnapshot {
     : db_(db), snapshot_(snapshot) {
     *snapshot_ = db_->GetSnapshot();
   }
+
   ~ScopeSnapshot() {
     db_->ReleaseSnapshot(*snapshot_);
   }
 
+  ScopeSnapshot(const ScopeSnapshot&) = delete;
+  ScopeSnapshot& operator=(const ScopeSnapshot&) = delete;
+
  private:
   rocksdb::DB* const db_;
   const rocksdb::Snapshot** snapshot_;
-  ScopeSnapshot(const ScopeSnapshot&);
-  void operator=(const ScopeSnapshot&);
 };
 
 }  // namespace blackwidow

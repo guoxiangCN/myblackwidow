@@ -39,8 +39,10 @@ class RedisHashes : public Redis {
   Status HLen(const Slice& key, uint32_t* len);
   Status HExists(const Slice& key, const Slice& field);
   Status HSet(const Slice& key, const Slice& filed, const Slice& value);
-  Status HSetNx(const Slice& key, const Slice& filed, const Slice& value);
-  
+  //Status HSetNx(const Slice& key, const Slice& filed, const Slice& value);
+  Status HGet(const Slice& key, const Slice& field, std::string* value);
+  Status HGetAll(const Slice& key, std::vector<FieldValue>* fvs);
+  Status HVals(const Slice &key, std::vector<std::string> *vals);
 };
 
 

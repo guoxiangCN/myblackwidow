@@ -2,13 +2,14 @@
 #include "hashes_filter.h"
 #include "hashes_format.h"
 #include "scope_record_lock.h"
+#include "scope_snapshot.h"
+#include "scope_iterator.h"
 
 namespace blackwidow {
 
 RedisHashes::RedisHashes(BlackWidow* const bw) : Redis(bw, kHashes) {
   // DO NOTHING
 }
-
 
 Status RedisHashes::Open(const BlackWidowOptions& bw_options,
                          const std::string& dbpath) {
@@ -17,7 +18,7 @@ Status RedisHashes::Open(const BlackWidowOptions& bw_options,
   // small_compaction_threshold_ = bw_options.small_compaction_threshold;
   rocksdb::Options opts(bw_options.options);
   rocksdb::Status s = rocksdb::DB::Open(opts, dbpath, &db_);
-  if(s.ok()) {
+  if (s.ok()) {
     // Create data column family
     rocksdb::ColumnFamilyOptions cf_opts;
     rocksdb::ColumnFamilyHandle* cf_handle = nullptr;
@@ -31,17 +32,35 @@ Status RedisHashes::Open(const BlackWidowOptions& bw_options,
 
   // Reopen
   rocksdb::DBOptions db_opt(bw_options.options);
+
+  rocksdb::BlockBasedTableOptions base_table_opts(bw_options.table_options);
+  base_table_opts.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
+
+  rocksdb::BlockBasedTableOptions meta_cf_table_opts(base_table_opts);
+  rocksdb::BlockBasedTableOptions data_cf_table_opts(base_table_opts);
+  if (bw_options.share_block_cache == false &&
+      bw_options.block_cache_size > 0) {
+    meta_cf_table_opts.block_cache =
+      rocksdb::NewLRUCache(bw_options.block_cache_size);
+    data_cf_table_opts.block_cache =
+      rocksdb::NewLRUCache(bw_options.block_cache_size);
+  }
+
   rocksdb::ColumnFamilyOptions meta_cf_opt(bw_options.options);
   meta_cf_opt.compaction_filter_factory.reset(new HashesMetaFilterFactory());
+  meta_cf_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(meta_cf_table_opts));
 
   rocksdb::ColumnFamilyOptions data_cf_opt(bw_options.options);
   data_cf_opt.compaction_filter_factory.reset(new HashesDataFilterFactory(&db_, &handles_));
+  data_cf_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(data_cf_table_opts));
 
-  std::vector<rocksdb::ColumnFamilyOptions> cf_option_list;
-  // cf_option_list.push_back(rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName,cf_opt));
-  // cf_option_list.push_back(rocksdb::ColumnFamilyDescriptor("data_cf", cf_opt));
-
-  // return rocksdb::DB::Open(db_opt, dbpath, cf_option_list, handles_, &db_);
+  std::vector<rocksdb::ColumnFamilyDescriptor> cfds;
+  // metaCf must be the first
+  cfds.push_back(rocksdb::ColumnFamilyDescriptor(
+    rocksdb::kDefaultColumnFamilyName, data_cf_opt));
+  // dataCf must be the second
+  cfds.push_back(rocksdb::ColumnFamilyDescriptor("data_cf", data_cf_opt));
+  return rocksdb::DB::Open(db_opt, dbpath, cfds, &handles_, &db_);
 }
 
 
@@ -95,8 +114,7 @@ Status RedisHashes::Del(const Slice& key) {
 Status RedisHashes::Expire(const Slice& key, int32_t ttl) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
-  Status s =
-    db_->Get(default_read_options_, HASHES_META, key, &meta_value);
+  Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
     if (parsed_meta_value.IsStale()) {
@@ -114,8 +132,7 @@ Status RedisHashes::Expire(const Slice& key, int32_t ttl) {
 Status RedisHashes::ExpireAt(const Slice& key, int32_t timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
-  Status s =
-    db_->Get(default_read_options_, HASHES_META, key, &meta_value);
+  Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
     if (parsed_meta_value.IsStale()) {
@@ -140,8 +157,7 @@ Status RedisHashes::ExpireAt(const Slice& key, int32_t timestamp) {
 Status RedisHashes::Persist(const Slice& key) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
-  Status s =
-    db_->Get(default_read_options_, HASHES_META, key, &meta_value);
+  Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
     if (parsed_meta_value.IsStale()) {
@@ -159,8 +175,7 @@ Status RedisHashes::Persist(const Slice& key) {
 Status RedisHashes::TTL(const Slice& key, int64_t* timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
-  Status s =
-    db_->Get(default_read_options_, HASHES_META, key, &meta_value);
+  Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
     if (parsed_meta_value.IsStale()) {
@@ -169,24 +184,23 @@ Status RedisHashes::TTL(const Slice& key, int64_t* timestamp) {
     } else if (parsed_meta_value.hash_size() == 0) {
       *timestamp = -2;
       return Status::NotFound();
-    } else if(parsed_meta_value.IsPermanentSurvival()) {
+    } else if (parsed_meta_value.IsPermanentSurvival()) {
       *timestamp = -1;
     } else {
       int64_t ttl = parsed_meta_value.timestamp();
       int64_t now = 0;
       rocksdb::Env::Default()->GetCurrentTime(&now);
-      if(ttl <= now) {
+      if (ttl <= now) {
         *timestamp = -2;
       } else {
         *timestamp = (ttl - now);
       }
     }
-  } else if (s.IsNotFound()){
+  } else if (s.IsNotFound()) {
     *timestamp = -2;
   }
   return s;
 }
-
 
 Status RedisHashes::HLen(const Slice& key, uint32_t* len) {
   std::string meta_value;
@@ -195,7 +209,7 @@ Status RedisHashes::HLen(const Slice& key, uint32_t* len) {
   Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
-    if (!parsed_meta_value.IsStale()) {
+    if (!parsed_meta_value.IsStale() && parsed_meta_value.hash_size() != 0) {
       *len = parsed_meta_value.hash_size();
     }
   }
@@ -205,8 +219,7 @@ Status RedisHashes::HLen(const Slice& key, uint32_t* len) {
 Status RedisHashes::HExists(const Slice& key, const Slice& field) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
-  Status s =
-    db_->Get(default_read_options_, HASHES_META, key, &meta_value);
+  Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
     if (parsed_meta_value.IsStale()) {
@@ -216,21 +229,24 @@ Status RedisHashes::HExists(const Slice& key, const Slice& field) {
     } else {
       std::string field_value;
       HashesDataKey data_key(key, field, parsed_meta_value.version());
-      s = db_->Get(default_read_options_, HASHES_DATA, data_key.Encode(), &field_value);
+      s = db_->Get(
+        default_read_options_, HASHES_DATA, data_key.Encode(), &field_value);
     }
   }
   return s;
 }
 
 
-Status RedisHashes::HSet(const Slice& key, const Slice& filed, const Slice& value) {
+Status RedisHashes::HSet(const Slice& key,
+                         const Slice& filed,
+                         const Slice& value) {
   std::string meta_value;
   rocksdb::WriteBatch batch;
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
-  if(s.ok()) {
+  if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
-    if(parsed_meta_value.IsStale() || parsed_meta_value.hash_size() == 0) {
+    if (parsed_meta_value.IsStale() || parsed_meta_value.hash_size() == 0) {
       parsed_meta_value.InitialMetaValue();
       parsed_meta_value.set_hash_size(1);
       HashesDataKey data_key(key, filed, parsed_meta_value.version());
@@ -243,19 +259,20 @@ Status RedisHashes::HSet(const Slice& key, const Slice& filed, const Slice& valu
       HashesDataKey data_key(key, filed, parsed_meta_value.version());
       s = db_->Get(
         default_read_options_, HASHES_META, data_key.Encode(), &field_value);
-        if(s.ok()) {
-          if(value.ToString()==field_value) {
-            return Status::OK();
-          }
-          // 替换filed value即可, meta不需要更新
-          s = db_->Put(
-            default_write_options_, HASHES_DATA, data_key.Encode(), value);
-        } else if (s.IsNotFound()) {
-            // field不存在，插入filed同时meta+1
-            // parsed_meta_value.sethas
-        } else {
-          return s;
+      if (s.ok()) {
+        if (value.ToString() == field_value) {
+          return Status::OK();
         }
+        // 替换filed value即可, meta不需要更新
+        s = db_->Put(
+          default_write_options_, HASHES_DATA, data_key.Encode(), value);
+      } else if (s.IsNotFound()) {
+        // field不存在，插入filed同时meta+1
+        // parsed_meta_value.sethas
+        assert(false);
+      } else {
+        return s;
+      }
     }
   } else if (s.IsNotFound()) {
     HashesMetaValue meta(1);
@@ -264,6 +281,96 @@ Status RedisHashes::HSet(const Slice& key, const Slice& filed, const Slice& valu
     batch.Put(HASHES_META, key, meta.Encode());
     batch.Put(HASHES_DATA, data_key.Encode(), value);
     s = db_->Write(default_write_options_, &batch);
+  }
+  return s;
+}
+
+
+Status RedisHashes::HGet(const Slice& key,
+                         const Slice& field,
+                         std::string* value) {
+  std::string meta_value;
+  const rocksdb::Snapshot* snapshot = nullptr;
+  ScopeSnapshot guard(db_, &snapshot);
+  rocksdb::ReadOptions read_opts;
+  read_opts.snapshot = snapshot;
+  Status s = db_->Get(read_opts, HASHES_META, key, &meta_value);
+  if (s.ok()) {
+    ParsedHashesMetaValue parsed_meta_value(&meta_value);
+    if (parsed_meta_value.IsStale() || parsed_meta_value.hash_size() == 0) {
+      value->clear();
+      return Status::NotFound();
+    } else {
+      HashesDataKey data_key(key, field, parsed_meta_value.version());
+      return db_->Get(read_opts, data_key.Encode(), value);
+    }
+  } else if (s.IsNotFound()) {
+    value->clear();
+  }
+  return s;
+}
+
+Status RedisHashes::HGetAll(const Slice& key, std::vector<FieldValue>* fvs) {
+  std::string meta_value;
+  rocksdb::ReadOptions read_opts;
+  const rocksdb::Snapshot* snapshot = nullptr;
+  ScopeSnapshot guard(db_, &snapshot);
+  read_opts.snapshot = snapshot;
+  Status s = db_->Get(read_opts, HASHES_META, key, &meta_value);
+  if (s.ok()) {
+    ParsedHashesMetaValue parsed_meta_value(&meta_value);
+    if (parsed_meta_value.IsStale()) {
+      fvs->clear();
+      return Status::NotFound("Expired");
+    } else if (parsed_meta_value.hash_size() == 0) {
+      fvs->clear();
+      return Status::NotFound();
+    } else {
+      fvs->clear();
+      HashesDataKey data_key(key, "", parsed_meta_value.version());
+      const Slice prefix = data_key.Encode();
+      rocksdb::Iterator* it = db_->NewIterator(read_opts, HASHES_DATA);
+      for (it->Seek(prefix); 
+           it->Valid() && it->key().starts_with(prefix);
+           it->Next()) {
+        ParsedHashesDataKey parsed_data_key(it->key());
+        fvs->push_back({parsed_data_key.field().ToString(),it->value().ToString()});
+      }
+      delete it;
+    }
+  } else if (s.IsNotFound()) {
+    fvs->clear();
+  }
+  return s;
+}
+
+
+Status RedisHashes::HVals(const Slice &key, std::vector<std::string> *vals) {
+  std::string meta_value;
+  const rocksdb::Snapshot* snapshot = nullptr;
+  ScopeSnapshot ss(db_, &snapshot);
+  rocksdb::ReadOptions read_opts;
+  read_opts.snapshot = snapshot;
+  Status s = db_->Get(read_opts, HASHES_META, key, &meta_value);
+  if(s.ok()) {
+    ParsedHashesMetaValue parsed_meta_value(&meta_value);
+    if(parsed_meta_value.IsStale()) {
+      vals->clear();
+      return Status::NotFound("Expired");
+    } else if(parsed_meta_value.hash_size() == 0) {
+      vals->clear();
+      return Status::NotFound();
+    } else {
+      HashesDataKey data_key(key, "", parsed_meta_value.version());
+      Slice prefix = data_key.Encode();
+      rocksdb::Iterator* it = db_->NewIterator(read_opts, HASHES_DATA);
+      for (it->Seek(prefix); it->Valid() && it->key().starts_with(prefix); it->Next()) {
+        vals->push_back(it->value().ToString());
+      }
+      delete it;
+    }
+  } else if (s.IsNotFound()) {
+    vals->clear();
   }
   return s;
 }

@@ -17,7 +17,8 @@ Redis::~Redis() {
   handles_.clear();
 
   for(auto handle : tmp_handlers) {
-    delete handle;
+    //delete handle;
+    db_->DestroyColumnFamilyHandle(handle);
   }
 
   delete db_;
