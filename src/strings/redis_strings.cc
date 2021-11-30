@@ -472,5 +472,37 @@ Status RedisStrings::SetEx(const Slice& key,
   return db_->Put(default_write_options_, key, sv.Encode());
 }
 
+// Compare and delete
+// @returns 1 on successfully deleted.
+// @returns 0 on compare failed and delete failed.
+// @returns -1 on key not exists.
+Status RedisStrings::Cad(const Slice& key, const Slice &expected_value, int32_t *ret) {
+  std::string value;
+  ScopeRecordLock l(lock_mgr_, key);
+  Status s = db_->Get(default_read_options_, key, &value);
+  if(s.ok()) {
+    ParsedStringsValue parsed_value(&value);
+    if(parsed_value.IsStale()) {
+      *ret = -1;
+      return Status::OK();
+    } else {
+      Slice actual_value = parsed_value.user_value();
+      if(actual_value.compare(expected_value)!=0) {
+        *ret = 0;
+        return Status::OK();
+      } else {
+        s = db_->Delete(default_write_options_, key);
+        if(s.ok()) {
+          *ret = 1;
+        }
+      }
+    }
+  } else if (s.IsNotFound()) {
+    *ret = -1;
+    return Status::OK();
+  }
+  return s;
+}
+
 
 }  // namespace blackwidow

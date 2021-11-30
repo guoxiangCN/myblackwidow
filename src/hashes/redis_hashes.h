@@ -44,6 +44,12 @@ class RedisHashes : public Redis {
   Status HGetAll(const Slice& key, std::vector<FieldValue>* fvs);
   Status HVals(const Slice &key, std::vector<std::string> *vals);
   Status HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret);
+  Status HStrlen(const Slice& key, const Slice& field, int32_t* len);
+  // HIncrBy
+  // HIncrByFloat
+
+  // Special Commands
+  void ScanDatabase();
 };
 
 

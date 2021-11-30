@@ -57,6 +57,7 @@ class RedisStrings : public Redis {
                const int32_t ttl);
   Status Get(const Slice& key, std::string* value);
   Status GetSet(const Slice& key, const Slice& value, std::string* old);
+  Status Cad(const Slice& key, const Slice& expected_value, int32_t *ret);
 
  private:
   // AUX Utils

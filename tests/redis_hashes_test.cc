@@ -56,6 +56,45 @@ TEST(TestHExists, RedisHashesTest) {
   // EXPECT_TRUE(s.ok());
 }
 
+TEST(TestHStrlen, RedisHashesTest) {
+  blackwidow::RedisHashes* redis = nullptr;
+
+  testing::Defer df([&]() {
+    if (redis != nullptr)
+      delete redis;
+    system(kCmdDeleteTestingPath);
+  });
+
+  redis = new blackwidow::RedisHashes(nullptr);
+  blackwidow::BlackWidowOptions opts;
+  opts.options.create_if_missing = true;
+  opts.options.error_if_exists = false;
+  blackwidow::Status s = redis->Open(opts, kTestingPath);
+  EXPECT_TRUE(s.ok());
+
+  int32_t len = -1;
+  std::string key = "USER_INFO_17802530";
+
+  s = redis->HStrlen(key, "UID", &len);
+  EXPECT_TRUE(s.IsNotFound());
+  EXPECT_EQ(0, len);
+
+  s = redis->HStrlen(key, "AGE", &len);
+  EXPECT_TRUE(s.IsNotFound());
+  EXPECT_EQ(0, len);
+
+  s = redis->HSet(key, "UID", "helloworld");
+  EXPECT_TRUE(s.ok());  
+
+  s = redis->HStrlen(key, "UID", &len);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(10, len);
+
+  s = redis->HStrlen(key, "AGE", &len);
+  EXPECT_TRUE(s.IsNotFound());
+  EXPECT_EQ(0, len);
+}
+
 TEST(TestHGetAll, RedisHashesTest) {
   blackwidow::RedisHashes* redis = nullptr;
 

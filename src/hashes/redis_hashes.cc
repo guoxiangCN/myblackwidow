@@ -433,4 +433,38 @@ Status RedisHashes::HDel(const Slice& key,
   return s;
 }
 
+Status RedisHashes::HStrlen(const Slice& key, const Slice& field, int32_t* len) {
+  std::string meta_value;
+  const rocksdb::Snapshot* snapshot = nullptr;
+  ScopeSnapshot ss(db_, &snapshot);
+  rocksdb::ReadOptions read_opts;
+  read_opts.snapshot = snapshot;
+  *len = 0;
+  Status s = db_->Get(read_opts, HASHES_META, key, &meta_value);
+  if(s.ok()) {
+    ParsedHashesMetaValue parsed_meta_value(&meta_value);
+    if(parsed_meta_value.IsStale()) {
+      return Status::NotFound("Expired");
+    } else if(parsed_meta_value.hash_size()==0) {
+      return Status::NotFound();
+    } else {
+      std::string field_value;
+      HashesDataKey data_key(key, field, parsed_meta_value.version());
+      s = db_->Get(read_opts, HASHES_DATA, data_key.Encode(), &field_value);
+      if(s.ok()) {
+        *len = field_value.size();
+      }
+    }
+  }
+  return s;
+}
+
+
+
+
+void RedisHashes::ScanDatabase() {
+  // TODO
+}
+
+
 }  // namespace blackwidow

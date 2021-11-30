@@ -418,34 +418,71 @@ TEST(TestSetBit, RedisStringsTest) {
   EXPECT_EQ(0, oldbit);
 
 	
-  for(uint64_t offset = 0; offset < 1000000; offset++) {
-    std::cout << "Offset: " << offset << std::endl;
+  // for(uint64_t offset = 0; offset < 1000000; offset++) {
+  //   std::cout << "Offset: " << offset << std::endl;
 
-    s = redis->GetBit("YYDS", offset, &oldbit);
-    EXPECT_TRUE(s.ok() || s.IsNotFound());
-    EXPECT_EQ(0, oldbit);
+  //   s = redis->GetBit("YYDS", offset, &oldbit);
+  //   EXPECT_TRUE(s.ok() || s.IsNotFound());
+  //   EXPECT_EQ(0, oldbit);
 
-    s = redis->SetBit("YYDS", offset, 1, &oldbit);
-    EXPECT_TRUE(s.ok());
-    EXPECT_EQ(0, oldbit);
+  //   s = redis->SetBit("YYDS", offset, 1, &oldbit);
+  //   EXPECT_TRUE(s.ok());
+  //   EXPECT_EQ(0, oldbit);
 
-    s = redis->GetBit("YYDS", offset, &oldbit);
-    EXPECT_TRUE(s.ok());
-    EXPECT_EQ(1, oldbit);
+  //   s = redis->GetBit("YYDS", offset, &oldbit);
+  //   EXPECT_TRUE(s.ok());
+  //   EXPECT_EQ(1, oldbit);
 
-    s = redis->SetBit("YYDS", offset, 0, &oldbit);
-    EXPECT_TRUE(s.ok());
-    EXPECT_EQ(1, oldbit);
+  //   s = redis->SetBit("YYDS", offset, 0, &oldbit);
+  //   EXPECT_TRUE(s.ok());
+  //   EXPECT_EQ(1, oldbit);
 
-    s = redis->GetBit("YYDS", offset, &oldbit);
-    EXPECT_TRUE(s.ok());
-    EXPECT_EQ(0, oldbit);
-  }
+  //   s = redis->GetBit("YYDS", offset, &oldbit);
+  //   EXPECT_TRUE(s.ok());
+  //   EXPECT_EQ(0, oldbit);
+  // }
 
-  uint64_t bitcount = 0;
-  s = redis->BitCount("YYDS", &bitcount);
+  // uint64_t bitcount = 0;
+  // s = redis->BitCount("YYDS", &bitcount);
+  // EXPECT_TRUE(s.ok());
+  // EXPECT_EQ(bitcount, 0);
+}
+
+TEST(TestCad, RedisStringsTest) {
+   blackwidow::RedisStrings* redis = nullptr;
+
+  testing::Defer df([&]() {
+    if (redis != nullptr)
+      delete redis;
+    system(kCmdDeleteTestingPath);
+  });
+
+  redis = new blackwidow::RedisStrings(nullptr);
+  blackwidow::BlackWidowOptions opts;
+  opts.options.create_if_missing = true;
+  opts.options.error_if_exists = false;
+  blackwidow::Status s = redis->Open(opts, kTestingPath);
   EXPECT_TRUE(s.ok());
-  EXPECT_EQ(bitcount, 0);
+
+  int32_t ret = -2;
+
+  // expect -1
+  s = redis->Cad("key_not_exists", "hello", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(-1, ret);
+
+  s = redis->Set("key_not_exists", "hell");
+  EXPECT_TRUE(s.ok());
+
+  // expected 0
+  s = redis->Cad("key_not_exists", "hello", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(0, ret);
+
+  // expected 1
+  s = redis->Cad("key_not_exists", "hell", &ret);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, ret);
 }
 
 int main(int argc, char** argv) {
