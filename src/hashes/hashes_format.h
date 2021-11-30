@@ -89,6 +89,7 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
 
   void set_hash_size(uint32_t hash_size) {
     hash_size_ = hash_size;
+    SetHashSizeToValue();
   }
 
   void InitialMetaValue() {
@@ -100,6 +101,13 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
   void StripSuffix() override {
     if (value_) {
       value_->erase(value_->begin() + sizeof(uint32_t), value_->end());
+    }
+  }
+
+  void SetHashSizeToValue() {
+    if(value_) {
+      char* ptr = value_->data();
+      EncodeFixed32(ptr, hash_size_);
     }
   }
 

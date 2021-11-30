@@ -83,6 +83,19 @@ TEST(TestHGetAll, RedisHashesTest) {
   for (auto& fv : fvs) {
     std::cout << "field:" << fv.field << ", value:" << fv.value << std::endl;
   }
+
+  // HDEL
+  int32_t deleted = 0;
+  std::vector<std::string> fields;
+  fields.push_back("uid");
+  s = redis->HDel(key, fields, &deleted);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, deleted);
+  
+  // GetAll after hdel
+  s = redis->HGetAll(key, &fvs);
+  EXPECT_TRUE(s.IsNotFound());
+  EXPECT_EQ(0, fvs.size());
 }
 
 TEST(TestHVals, RedisHashesTest) {

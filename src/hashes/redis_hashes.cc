@@ -1,9 +1,12 @@
 #include "redis_hashes.h"
 #include "hashes_filter.h"
 #include "hashes_format.h"
+#include "scope_iterator.h"
 #include "scope_record_lock.h"
 #include "scope_snapshot.h"
-#include "scope_iterator.h"
+
+#include <unordered_set>
+#include <vector>
 
 namespace blackwidow {
 
@@ -48,11 +51,14 @@ Status RedisHashes::Open(const BlackWidowOptions& bw_options,
 
   rocksdb::ColumnFamilyOptions meta_cf_opt(bw_options.options);
   meta_cf_opt.compaction_filter_factory.reset(new HashesMetaFilterFactory());
-  meta_cf_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(meta_cf_table_opts));
+  meta_cf_opt.table_factory.reset(
+    rocksdb::NewBlockBasedTableFactory(meta_cf_table_opts));
 
   rocksdb::ColumnFamilyOptions data_cf_opt(bw_options.options);
-  data_cf_opt.compaction_filter_factory.reset(new HashesDataFilterFactory(&db_, &handles_));
-  data_cf_opt.table_factory.reset(rocksdb::NewBlockBasedTableFactory(data_cf_table_opts));
+  data_cf_opt.compaction_filter_factory.reset(
+    new HashesDataFilterFactory(&db_, &handles_));
+  data_cf_opt.table_factory.reset(
+    rocksdb::NewBlockBasedTableFactory(data_cf_table_opts));
 
   std::vector<rocksdb::ColumnFamilyDescriptor> cfds;
   // metaCf must be the first
@@ -330,11 +336,11 @@ Status RedisHashes::HGetAll(const Slice& key, std::vector<FieldValue>* fvs) {
       HashesDataKey data_key(key, "", parsed_meta_value.version());
       const Slice prefix = data_key.Encode();
       rocksdb::Iterator* it = db_->NewIterator(read_opts, HASHES_DATA);
-      for (it->Seek(prefix); 
-           it->Valid() && it->key().starts_with(prefix);
+      for (it->Seek(prefix); it->Valid() && it->key().starts_with(prefix);
            it->Next()) {
         ParsedHashesDataKey parsed_data_key(it->key());
-        fvs->push_back({parsed_data_key.field().ToString(),it->value().ToString()});
+        fvs->push_back(
+          {parsed_data_key.field().ToString(), it->value().ToString()});
       }
       delete it;
     }
@@ -345,32 +351,84 @@ Status RedisHashes::HGetAll(const Slice& key, std::vector<FieldValue>* fvs) {
 }
 
 
-Status RedisHashes::HVals(const Slice &key, std::vector<std::string> *vals) {
+Status RedisHashes::HVals(const Slice& key, std::vector<std::string>* vals) {
   std::string meta_value;
   const rocksdb::Snapshot* snapshot = nullptr;
   ScopeSnapshot ss(db_, &snapshot);
   rocksdb::ReadOptions read_opts;
   read_opts.snapshot = snapshot;
   Status s = db_->Get(read_opts, HASHES_META, key, &meta_value);
-  if(s.ok()) {
+  if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
-    if(parsed_meta_value.IsStale()) {
+    if (parsed_meta_value.IsStale()) {
       vals->clear();
       return Status::NotFound("Expired");
-    } else if(parsed_meta_value.hash_size() == 0) {
+    } else if (parsed_meta_value.hash_size() == 0) {
       vals->clear();
       return Status::NotFound();
     } else {
       HashesDataKey data_key(key, "", parsed_meta_value.version());
       Slice prefix = data_key.Encode();
       rocksdb::Iterator* it = db_->NewIterator(read_opts, HASHES_DATA);
-      for (it->Seek(prefix); it->Valid() && it->key().starts_with(prefix); it->Next()) {
+      for (it->Seek(prefix); it->Valid() && it->key().starts_with(prefix);
+           it->Next()) {
         vals->push_back(it->value().ToString());
       }
       delete it;
     }
   } else if (s.IsNotFound()) {
     vals->clear();
+  }
+  return s;
+}
+
+Status RedisHashes::HDel(const Slice& key,
+                         const std::vector<std::string>& fields,
+                         int32_t* ret) {
+  if (fields.size() == 0) {
+    *ret = 0;
+    return Status::OK();
+  }
+
+  // remove duplicated
+  std::unordered_set<std::string> filters(fields.begin(), fields.end());
+  std::vector<std::string> filted_fields(filters.begin(), filters.end());
+
+  std::string meta_value;
+  ScopeRecordLock l(lock_mgr_, key);
+  rocksdb::WriteBatch batch;
+  Status s = db_->Get(default_read_options_, HASHES_META, key, &meta_value);
+  if (s.ok()) {
+    ParsedHashesMetaValue parsed_meta_value(&meta_value);
+    if (parsed_meta_value.IsStale() || parsed_meta_value.hash_size() == 0) {
+      *ret = 0;
+      return Status::OK();
+    } else {
+      *ret = 0;
+      std::string field_value;
+      for (const auto& f : filted_fields) {
+        HashesDataKey data_key(key, f, parsed_meta_value.version());
+        s = db_->Get(default_read_options_, HASHES_DATA, data_key.Encode(), &field_value);
+        if (s.ok()) {
+          (*ret)++;
+          batch.Delete(HASHES_DATA, data_key.Encode());
+        } else if (!s.IsNotFound()) {
+          *ret = 0;
+          return s;
+        }
+      }
+      if (*ret > 0) {
+        // 更新hash的新长度
+        parsed_meta_value.set_hash_size(parsed_meta_value.hash_size()-(*ret));
+        batch.Put(HASHES_META, key, meta_value);
+        return db_->Write(default_write_options_, &batch);
+      } else {
+        return Status::OK();
+      }
+    }
+  } else if (s.IsNotFound()) {
+    *ret = 0;
+    return Status::OK();
   }
   return s;
 }
