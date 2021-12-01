@@ -25,7 +25,7 @@ class RedisHashes : public Redis {
                   std::vector<std::string>* keys) override;
   Status PKPatternMatchDel(const std::string& pattern, int32_t* ret) override;
 
-  // Keys Commands
+  // Keys Commands inherit from parents.
   Status Del(const Slice& key) override;
   Status Expire(const Slice& key, int32_t ttl) override;
   Status ExpireAt(const Slice& key, int32_t timestamp) override;
@@ -34,16 +34,17 @@ class RedisHashes : public Redis {
   // TODO Scan
   // TODO: PKExpireScan
 
-
   // Hash Commands
   Status HLen(const Slice& key, uint32_t* len);
   Status HExists(const Slice& key, const Slice& field);
-  Status HSet(const Slice& key, const Slice& filed, const Slice& value);
-  //Status HSetNx(const Slice& key, const Slice& filed, const Slice& value);
+  Status HSet(const Slice& key, const Slice& filed, const Slice& value, int32_t *ret);
+  // Status HSetNx(const Slice& key, const Slice& filed, const Slice& value);
   Status HGet(const Slice& key, const Slice& field, std::string* value);
   Status HGetAll(const Slice& key, std::vector<FieldValue>* fvs);
-  Status HVals(const Slice &key, std::vector<std::string> *vals);
-  Status HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret);
+  Status HVals(const Slice& key, std::vector<std::string>* vals);
+  Status HDel(const Slice& key,
+              const std::vector<std::string>& fields,
+              int32_t* ret);
   Status HStrlen(const Slice& key, const Slice& field, int32_t* len);
   // HIncrBy
   // HIncrByFloat

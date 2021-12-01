@@ -5,13 +5,10 @@
 #include "rocksdb/env.h"
 #include <cassert>
 
-// MetaKey:  |UserKey|
-// MetaVal:  |HashSize(4bytes)|Version(4byte)|Timestamp(4byte)|
-
-// FieldKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Field|
-// FieldVal: |FieldValue|
 namespace blackwidow {
 
+// MetaKey:  |UserKey|
+// MetaVal:  |HashSize(4bytes)|Version(4byte)|Timestamp(4byte)|
 class HashesMetaValue : public InternalValue {
  public:
   explicit HashesMetaValue(uint32_t hash_size)
@@ -55,15 +52,20 @@ class HashesMetaValue : public InternalValue {
   uint32_t hash_size_;
 };
 
+
+// MetaKey:  |UserKey|
+// MetaVal:  |HashSize(4bytes)|Version(4byte)|Timestamp(4byte)|
 class ParsedHashesMetaValue : public ParsedInternalValue {
  public:
   // Use this constructor after rocksdb::DB::Get
   explicit ParsedHashesMetaValue(std::string* value)
     : ParsedInternalValue(value) {
-    assert(value->size() == (sizeof(uint32_t) * 3));
-    char* ptr = value->data();
 
+    // HashSize(4Bytes) + Version(4Bytes) + Timestamp(4Bytes)
+    assert(value->size() == (sizeof(uint32_t) * 3));
+    
     // Decode hash_size
+    char* ptr = value->data();
     hash_size_ = DecodeFixed32(ptr);
     ptr += sizeof(uint32_t);
 
@@ -79,8 +81,23 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
   // Use this constructor in rocksdb::CompactionFilter
   explicit ParsedHashesMetaValue(const Slice& value)
     : ParsedInternalValue(value) {
-    // TODO
-    assert(false);
+
+    // HashSize(4Bytes) + Version(4Bytes) + Timestamp(4Bytes)
+    assert(value.size() == (sizeof(uint32_t) * 3));
+
+    // Decode hash_size    
+    const char* ptr = value.data();
+    hash_size_ = DecodeFixed32(ptr);
+    ptr += sizeof(uint32_t);
+
+    // Decode version
+    version_ = DecodeFixed32(ptr);
+    ptr += sizeof(int32_t);
+
+    // Decode timestamp
+    timestamp_ = DecodeFixed32(ptr);
+    ptr += sizeof(int32_t);
+
   }
 
   uint32_t hash_size() const {
@@ -142,6 +159,8 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
   uint32_t hash_size_;
 };
 
+// FieldKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Field|
+// FieldVal: |FieldValue|
 class HashesDataKey {
  public:
   explicit HashesDataKey(const Slice& key, const Slice& field, int32_t version)

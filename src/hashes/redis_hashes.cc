@@ -244,8 +244,8 @@ Status RedisHashes::HExists(const Slice& key, const Slice& field) {
 
 
 Status RedisHashes::HSet(const Slice& key,
-                         const Slice& filed,
-                         const Slice& value) {
+                         const Slice& field,
+                         const Slice& value, int32_t *ret) {
   std::string meta_value;
   rocksdb::WriteBatch batch;
   ScopeRecordLock l(lock_mgr_, key);
@@ -255,38 +255,54 @@ Status RedisHashes::HSet(const Slice& key,
     if (parsed_meta_value.IsStale() || parsed_meta_value.hash_size() == 0) {
       parsed_meta_value.InitialMetaValue();
       parsed_meta_value.set_hash_size(1);
-      HashesDataKey data_key(key, filed, parsed_meta_value.version());
+      HashesDataKey data_key(key, field, parsed_meta_value.version());
       batch.Put(HASHES_META, key, meta_value);
       batch.Put(HASHES_DATA, data_key.Encode(), value);
       s = db_->Write(default_write_options_, &batch);
+      if(s.ok() && ret) {
+        *ret = 1;
+      }
     } else {
-      // 需要查询一次 如果存在同filed则替换 不是同filed则hashsize+1
       std::string field_value;
-      HashesDataKey data_key(key, filed, parsed_meta_value.version());
-      s = db_->Get(
-        default_read_options_, HASHES_META, data_key.Encode(), &field_value);
+      HashesDataKey data_key(key, field, parsed_meta_value.version());
+      s = db_->Get(default_read_options_, HASHES_META, data_key.Encode(), &field_value);
       if (s.ok()) {
+        // If field exists and field_value was equals to the newer, nothing todo.
         if (value.ToString() == field_value) {
+          if(ret){
+            *ret = 0;
+          }
           return Status::OK();
         }
-        // 替换filed value即可, meta不需要更新
-        s = db_->Put(
-          default_write_options_, HASHES_DATA, data_key.Encode(), value);
+        // Replace the old value.
+        s = db_->Put(default_write_options_, HASHES_DATA, data_key.Encode(), value);
+        if(ret) {
+          *ret = 0;
+        }
       } else if (s.IsNotFound()) {
-        // field不存在，插入filed同时meta+1
-        // parsed_meta_value.sethas
-        assert(false);
+        // Put the filed-value pair and update the hash_size + 1
+        parsed_meta_value.set_hash_size(parsed_meta_value.hash_size() + 1);
+        batch.Put(HASHES_META, key, meta_value);
+        batch.Put(HASHES_DATA, data_key.Encode(), value);
+        s = db_->Write(default_write_options_, &batch);
+        if (s.ok() && ret) {
+          *ret = 1;
+        }
       } else {
+        // error on query field.
         return s;
       }
     }
   } else if (s.IsNotFound()) {
-    HashesMetaValue meta(1);
-    meta.UpdateVersion();
-    HashesDataKey data_key(key, filed, meta.version());
-    batch.Put(HASHES_META, key, meta.Encode());
+    HashesMetaValue meta_value(1);
+    meta_value.UpdateVersion();
+    HashesDataKey data_key(key, field, meta_value.version());
+    batch.Put(HASHES_META, key, meta_value.Encode());
     batch.Put(HASHES_DATA, data_key.Encode(), value);
     s = db_->Write(default_write_options_, &batch);
+    if(s.ok() && ret) {
+      *ret = 1;
+    }
   }
   return s;
 }
@@ -408,7 +424,8 @@ Status RedisHashes::HDel(const Slice& key,
       std::string field_value;
       for (const auto& f : filted_fields) {
         HashesDataKey data_key(key, f, parsed_meta_value.version());
-        s = db_->Get(default_read_options_, HASHES_DATA, data_key.Encode(), &field_value);
+        s = db_->Get(
+          default_read_options_, HASHES_DATA, data_key.Encode(), &field_value);
         if (s.ok()) {
           (*ret)++;
           batch.Delete(HASHES_DATA, data_key.Encode());
@@ -419,7 +436,7 @@ Status RedisHashes::HDel(const Slice& key,
       }
       if (*ret > 0) {
         // 更新hash的新长度
-        parsed_meta_value.set_hash_size(parsed_meta_value.hash_size()-(*ret));
+        parsed_meta_value.set_hash_size(parsed_meta_value.hash_size() - (*ret));
         batch.Put(HASHES_META, key, meta_value);
         return db_->Write(default_write_options_, &batch);
       } else {
@@ -433,7 +450,9 @@ Status RedisHashes::HDel(const Slice& key,
   return s;
 }
 
-Status RedisHashes::HStrlen(const Slice& key, const Slice& field, int32_t* len) {
+Status RedisHashes::HStrlen(const Slice& key,
+                            const Slice& field,
+                            int32_t* len) {
   std::string meta_value;
   const rocksdb::Snapshot* snapshot = nullptr;
   ScopeSnapshot ss(db_, &snapshot);
@@ -441,25 +460,23 @@ Status RedisHashes::HStrlen(const Slice& key, const Slice& field, int32_t* len) 
   read_opts.snapshot = snapshot;
   *len = 0;
   Status s = db_->Get(read_opts, HASHES_META, key, &meta_value);
-  if(s.ok()) {
+  if (s.ok()) {
     ParsedHashesMetaValue parsed_meta_value(&meta_value);
-    if(parsed_meta_value.IsStale()) {
+    if (parsed_meta_value.IsStale()) {
       return Status::NotFound("Expired");
-    } else if(parsed_meta_value.hash_size()==0) {
+    } else if (parsed_meta_value.hash_size() == 0) {
       return Status::NotFound();
     } else {
       std::string field_value;
       HashesDataKey data_key(key, field, parsed_meta_value.version());
       s = db_->Get(read_opts, HASHES_DATA, data_key.Encode(), &field_value);
-      if(s.ok()) {
+      if (s.ok()) {
         *len = field_value.size();
       }
     }
   }
   return s;
 }
-
-
 
 
 void RedisHashes::ScanDatabase() {

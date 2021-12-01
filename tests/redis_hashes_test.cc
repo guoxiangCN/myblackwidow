@@ -38,7 +38,7 @@ TEST(TestHExists, RedisHashesTest) {
   EXPECT_TRUE(s.IsNotFound());
   EXPECT_EQ(0, hash_size);
 
-  s = redis->HSet("USER_17802525", "Name", "喜欢RAP和篮球");
+  s = redis->HSet("USER_17802525", "Name", "喜欢RAP和篮球", nullptr);
   EXPECT_TRUE(s.ok());
 
   s = redis->HLen("USER_17802525", &hash_size);
@@ -83,7 +83,7 @@ TEST(TestHStrlen, RedisHashesTest) {
   EXPECT_TRUE(s.IsNotFound());
   EXPECT_EQ(0, len);
 
-  s = redis->HSet(key, "UID", "helloworld");
+  s = redis->HSet(key, "UID", "helloworld", nullptr);
   EXPECT_TRUE(s.ok());  
 
   s = redis->HStrlen(key, "UID", &len);
@@ -112,7 +112,7 @@ TEST(TestHGetAll, RedisHashesTest) {
   EXPECT_TRUE(s.ok());
 
   std::string key = "USER_INFO_17802525";
-  s = redis->HSet(key, "uid", "17802525");
+  s = redis->HSet(key, "uid", "17802525", nullptr);
   EXPECT_TRUE(s.ok());
 
   std::vector<blackwidow::FieldValue> fvs;
@@ -154,7 +154,7 @@ TEST(TestHVals, RedisHashesTest) {
   EXPECT_TRUE(s.ok());
 
   std::string key = "USER_INFO_17802525";
-  s = redis->HSet(key, "uid", "17802525");
+  s = redis->HSet(key, "uid", "17802525", nullptr);
   EXPECT_TRUE(s.ok());
 
   std::vector<std::string> vals;
@@ -191,7 +191,7 @@ TEST(TestExpireAndTTL, RedisHashesTest) {
   EXPECT_TRUE(s.IsNotFound());
   EXPECT_EQ(ttl, KEY_ABSENT);
 
-  s = redis->HSet("tencent_games", "crossfire", "1000");
+  s = redis->HSet("tencent_games", "crossfire", "1000", nullptr);
   EXPECT_TRUE(s.ok());
 
   s = redis->TTL("tencent_games", &ttl);
@@ -216,6 +216,79 @@ TEST(TestExpireAndTTL, RedisHashesTest) {
 }
 #undef NO_EXPIRE
 #undef KEY_ABSENT
+
+TEST(TestHSet_V2, RedisHashesTest) {
+  blackwidow::RedisHashes* redis = nullptr;
+
+  testing::Defer df([&]() {
+    if (redis != nullptr)
+      delete redis;
+    system(kCmdDeleteTestingPath);
+  });
+
+  redis = new blackwidow::RedisHashes(nullptr);
+  blackwidow::BlackWidowOptions opts;
+  opts.options.create_if_missing = true;
+  opts.options.error_if_exists = false;
+  blackwidow::Status s = redis->Open(opts, kTestingPath);
+  EXPECT_TRUE(s.ok());
+
+  std::string hash_key = "TencentGames";
+  std::vector<blackwidow::FieldValue> fvs;
+  std::int32_t newfield_added = -1;
+  std::uint32_t hash_size = -1;
+
+  s = redis->HGetAll(hash_key, &fvs);
+  EXPECT_TRUE(s.IsNotFound());
+  EXPECT_TRUE(fvs.empty());
+
+  s = redis->HSet(hash_key, "英雄联盟", "10", &newfield_added);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, newfield_added);
+
+  s = redis->HSet(hash_key, "穿越火线", "9", &newfield_added);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, newfield_added);
+
+  s = redis->HSet(hash_key, "王者荣耀", "8", &newfield_added);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, newfield_added);
+
+  s = redis->HSet(hash_key, "刺激战场", "7", &newfield_added);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(1, newfield_added);
+
+  s = redis->HLen(hash_key, &hash_size);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(4, hash_size);
+
+  s = redis->HGetAll(hash_key, &fvs);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(fvs.size(), 4);
+
+  std::vector<std::string> game_names;
+  std::transform(fvs.begin(),
+                 fvs.end(),
+                 std::back_inserter(game_names),
+                 [](const blackwidow::FieldValue& fv) { return fv.field; });
+
+  EXPECT_TRUE(std::find(game_names.begin(), game_names.end(), "穿越火线") != game_names.end());
+  EXPECT_TRUE(std::find(game_names.begin(), game_names.end(), "英雄联盟") != game_names.end());
+  EXPECT_TRUE(std::find(game_names.begin(), game_names.end(), "王者荣耀") != game_names.end());
+  EXPECT_TRUE(std::find(game_names.begin(), game_names.end(), "刺激战场") != game_names.end());
+  EXPECT_TRUE(std::find(game_names.begin(), game_names.end(), "CSGO") == game_names.end());
+
+  std::unordered_map<std::string, std::string> game_score_map;
+  for(const auto &fv : fvs) {
+    game_score_map[fv.field] = fv.value;
+    std::cout << "field:" << fv.field << ", value:" << fv.value << std::endl;
+  }
+
+  EXPECT_EQ(game_score_map["英雄联盟"], "10");
+  EXPECT_EQ(game_score_map["穿越火线"], "9");
+  EXPECT_EQ(game_score_map["王者荣耀"], "8");
+  EXPECT_EQ(game_score_map["刺激战场"], "7");
+}
 
 #define BT_BUF_SIZE 100
 void signal_handler(int signo) {
