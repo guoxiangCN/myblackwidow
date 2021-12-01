@@ -6,7 +6,7 @@
 namespace blackwidow {
 
 #define HASHES_META (handles_[0])
-#define HASHES_DATA (handles_[0])
+#define HASHES_DATA (handles_[1])
 
 class RedisHashes : public Redis {
  public:

@@ -112,12 +112,10 @@ class ParsedInternalValue {
     SetTimestampToValue();
   }
 
-  // 是否永久有效无过期时间
    bool IsPermanentSurvival() const {
     return timestamp_ == 0;
   }
 
-  // 是否过期
   bool IsStale() const {
     if (timestamp_ == 0) {
       return false;

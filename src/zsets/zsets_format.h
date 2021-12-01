@@ -1,32 +1,26 @@
 #pragma once
 
-#include "base_value_format.h"
-#include "coding.h"
-#include "rocksdb/env.h"
-#include <cassert>
+#include "rocksdb/slice.h"
 
-// MetaKey:  |UserKey|
-// MetaVal:  |HashSize(4bytes)|Version(4byte)|Timestamp(4byte)|
-
-// FieldKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Field|
-// FieldVal: |FieldValue|
 namespace blackwidow {
 
-class HashesMetaValue : public InternalValue {
+using Slice = rocksdb::Slice;
+
+class ZsetsMetaValue : public InternalValue {
  public:
-  explicit HashesMetaValue(uint32_t hash_size)
-    : InternalValue(Slice("****")), hash_size_(hash_size) {
+  explicit ZsetsMetaValue(uint32_t zset_size)
+    : InternalValue(Slice("****")), zset_size_(zset_size) {
     // **** 仅占位4字节 让InternalValue的user_value占位4字节去分配空间.
   }
 
-  void set_hash_size(uint32_t hash_size) {
-    hash_size_ = hash_size_;
+  void set_zset_size(uint32_t zset_size) {
+    zset_size_ = zset_size;
   }
 
   size_t AppendTimestampAndVersion() override {
-    // 4 bytes for hash size
+    // 4 bytes for zset size
     char* dst = start_;
-    EncodeFixed32(dst, hash_size_);
+    EncodeFixed32(dst, zset_size_);
     dst += sizeof(uint32_t);
 
     // 4 bytes for version
@@ -52,19 +46,19 @@ class HashesMetaValue : public InternalValue {
   }
 
  private:
-  uint32_t hash_size_;
+  uint32_t zset_size_;
 };
 
-class ParsedHashesMetaValue : public ParsedInternalValue {
+class ParsedZsetsMetaValue : public ParsedInternalValue {
  public:
   // Use this constructor after rocksdb::DB::Get
-  explicit ParsedHashesMetaValue(std::string* value)
+  explicit ParsedZsetsMetaValue(std::string* value)
     : ParsedInternalValue(value) {
     assert(value->size() == (sizeof(uint32_t) * 3));
     char* ptr = value->data();
 
     // Decode hash_size
-    hash_size_ = DecodeFixed32(ptr);
+    zset_size_ = DecodeFixed32(ptr);
     ptr += sizeof(uint32_t);
 
     // Decode version
@@ -77,19 +71,19 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
   }
 
   // Use this constructor in rocksdb::CompactionFilter
-  explicit ParsedHashesMetaValue(const Slice& value)
+  explicit ParsedZsetsMetaValue(const Slice& value)
     : ParsedInternalValue(value) {
     // TODO
     assert(false);
   }
 
-  uint32_t hash_size() const {
-    return hash_size_;
+  uint32_t zset_szie() const {
+    return zset_size_;
   }
 
-  void set_hash_size(uint32_t hash_size) {
-    hash_size_ = hash_size;
-    SetHashSizeToValue();
+  void set_zset_size(uint32_t zset_size) {
+    zset_size_ = zset_size;
+    SetZSetSizeToValue();
   }
 
   void InitialMetaValue() {
@@ -104,10 +98,10 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
     }
   }
 
-  void SetHashSizeToValue() {
-    if(value_) {
+  void SetZSetSizeToValue() {
+    if (value_) {
       char* ptr = value_->data();
-      EncodeFixed32(ptr, hash_size_);
+      EncodeFixed32(ptr, zset_size_);
     }
   }
 
@@ -139,15 +133,15 @@ class ParsedHashesMetaValue : public ParsedInternalValue {
   }
 
  private:
-  uint32_t hash_size_;
+  uint32_t zset_size_;
 };
 
-class HashesDataKey {
+class ZsetsDataKey {
  public:
-  explicit HashesDataKey(const Slice& key, const Slice& field, int32_t version)
-    : key_(key), field_(field), version_(version), start_(space_) {}
+  explicit ZsetsDataKey(const Slice& key, const Slice& member, int32_t version)
+    : key_(key), member_(member), version_(version), start_(space_) {}
 
-  virtual ~HashesDataKey() {
+  virtual ~ZsetsDataKey() {
     if (start_ != space_) {
       delete[] start_;
     }
@@ -155,7 +149,7 @@ class HashesDataKey {
 
   const Slice Encode() {
     size_t needed =
-      sizeof(uint32_t) + key_.size() + sizeof(int32_t) + field_.size();
+      sizeof(uint32_t) + key_.size() + sizeof(int32_t) + member_.size();
     if (needed > sizeof(space_)) {
       start_ = new char[needed];
     }
@@ -175,10 +169,10 @@ class HashesDataKey {
     EncodeFixed32(ptr, static_cast<uint32_t>(version_));
     ptr += sizeof(int32_t);
 
-    // field (这里兼容空field)
-    if (field_.size() > 0) {
-      memcpy(ptr, field_.data(), field_.size());
-      ptr += field_.size();
+    // member (这里兼容空member)
+    if (member_.size() > 0) {
+      memcpy(ptr, member_.data(), member_.size());
+      ptr += member_.size();
     }
 
     return Slice(start_, ptr - start_);
@@ -188,16 +182,16 @@ class HashesDataKey {
   char space_[250];  // reversed for short keys
   char* start_;
   const Slice key_;
-  const Slice field_;
+  const Slice member_;
   const int32_t version_;
 };
 
-// FieldKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Field|
-// FieldVal: |FieldValue|
-class ParsedHashesDataKey {
+// MemberKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Member|
+// MemberVal: |Score|
+class ParsedZsetsDataKey {
  public:
   // use this constructor in CompactionFilter
-  explicit ParsedHashesDataKey(const Slice& raw_key) {
+  explicit ParsedZsetsDataKey(const Slice& raw_key) {
     assert(raw_key.size() >= (sizeof(uint32_t) + sizeof(int32_t)));
     const char* ptr = raw_key.data();
     key_size_ = DecodeFixed32(ptr);
@@ -212,9 +206,9 @@ class ParsedHashesDataKey {
     version_ = static_cast<int32_t>(DecodeFixed32(ptr));
     ptr += sizeof(int32_t);
 
-    // 兼容field为空
-    if(raw_key.size() > (ptr - raw_key.data())) {
-      field_ = Slice(ptr, raw_key.size() - (ptr-raw_key.data()));
+    // 兼容member为空
+    if (raw_key.size() > (ptr - raw_key.data())) {
+      member_ = Slice(ptr, raw_key.size() - (ptr - raw_key.data()));
     }
   }
 
@@ -230,19 +224,16 @@ class ParsedHashesDataKey {
     return version_;
   }
 
-  const Slice field() const {
-    return field_;
+  const Slice member() const {
+    return member_;
   }
 
  private:
   uint32_t key_size_;
   Slice user_key_;
   int32_t version_;
-  Slice field_;
+  Slice member_;
 };
-
-
-
 
 
 }  // namespace blackwidow

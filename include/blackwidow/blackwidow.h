@@ -56,7 +56,6 @@ enum class OptionType;
 template <typename T1, typename T2>
 class LRUCache;
 
-// TODO annotate ME
 struct BlackWidowOptions {
   rocksdb::Options options;
   rocksdb::BlockBasedTableOptions table_options;

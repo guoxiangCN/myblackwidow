@@ -1,4 +1,5 @@
 #include "redis_strings.h"
+#include "blackwidow/util.h"
 #include "scope_record_lock.h"
 #include "scope_snapshot.h"
 #include "strings_filter.h"
@@ -157,8 +158,60 @@ Status RedisStrings::TTL(const Slice& key, int64_t* timestamp) {
   return s;
 }
 
+bool RedisStrings::Scan(const std::string& start_key,
+                        const std::string& pattern,
+                        std::vector<std::string>* keys,
+                        int64_t* count,
+                        std::string* next_key) {
+  const rocksdb::Snapshot* snapshot = nullptr;
+  ScopeSnapshot ss(db_, &snapshot);
+  rocksdb::ReadOptions iterator_opts;
+  iterator_opts.fill_cache = false;
+  iterator_opts.snapshot = snapshot;
+  keys->clear();
+  std::string key;
+
+  rocksdb::Iterator* it = db_->NewIterator(iterator_opts);
+  for (it->Seek(start_key); it->Valid() && (*count) > 0; it->Next()) {
+    ParsedStringsValue parsed_value(it->value());
+    if (parsed_value.IsStale()) {
+      continue;
+    }
+    key = it->key().ToString();
+    if (StringMatch(
+          pattern.data(), pattern.size(), key.data(), key.size(), 0)) {
+      keys->push_back(key);
+    }
+    (*count)--;
+  }
+
+  // find next_key TODO
+
+  delete it;
+  return false;
+}
+
 void RedisStrings::ScanDatabase() {
-  // TODO
+  const rocksdb::Snapshot* snapshot;
+  ScopeSnapshot ss(db_, &snapshot);
+  rocksdb::ReadOptions iterator_opts;
+  iterator_opts.fill_cache = false;
+  iterator_opts.snapshot = snapshot;
+
+  // Note: string types just use a default column family.
+  rocksdb::Iterator* it = db_->NewIterator(iterator_opts);
+  printf("======================================================");
+  for (it->SeekToFirst(); it->Valid(); it->Next()) {
+    std::string key = it->key().ToString();
+    ParsedStringsValue value(it->value().ToString());
+    printf("KEY: %-30s, VALUE: %-30s, TIMESTAMP: %-10d, EXPIRED:%d\n",
+           key.c_str(),
+           value.user_value().ToString().c_str(),
+           value.timestamp(),
+           value.IsStale());
+  }
+  printf("======================================================");
+  delete it;
 }
 
 
@@ -252,11 +305,11 @@ Status RedisStrings::SetBit(const Slice& key,
         value.resize(new_length);
       }
 
-      *oldbit = ((data[offset/8] & mask) != 0);
+      *oldbit = ((data[offset / 8] & mask) != 0);
       if (newbit == 0) {
-          data[offset / 8] &= (~mask);
+        data[offset / 8] &= (~mask);
       } else {
-          data[offset / 8] |= mask;
+        data[offset / 8] |= mask;
       }
 
       StringsValue sv(Slice(value.data(), value.size()));
@@ -476,23 +529,25 @@ Status RedisStrings::SetEx(const Slice& key,
 // @returns 1 on successfully deleted.
 // @returns 0 on compare failed and delete failed.
 // @returns -1 on key not exists.
-Status RedisStrings::Cad(const Slice& key, const Slice &expected_value, int32_t *ret) {
+Status RedisStrings::Cad(const Slice& key,
+                         const Slice& expected_value,
+                         int32_t* ret) {
   std::string value;
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, &value);
-  if(s.ok()) {
+  if (s.ok()) {
     ParsedStringsValue parsed_value(&value);
-    if(parsed_value.IsStale()) {
+    if (parsed_value.IsStale()) {
       *ret = -1;
       return Status::OK();
     } else {
       Slice actual_value = parsed_value.user_value();
-      if(actual_value.compare(expected_value)!=0) {
+      if (actual_value.compare(expected_value) != 0) {
         *ret = 0;
         return Status::OK();
       } else {
         s = db_->Delete(default_write_options_, key);
-        if(s.ok()) {
+        if (s.ok()) {
           *ret = 1;
         }
       }

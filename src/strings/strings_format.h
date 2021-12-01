@@ -43,7 +43,7 @@ class ParsedStringsValue : public ParsedInternalValue {
     }
   }
 
-  // Use this constructor in rocksdb::CompactionFilter::Filter();
+  // Use this constructor in rocksdb::CompactionFilter::Filter() or iterator.
   explicit ParsedStringsValue(const Slice& internal_value_slice)
     : ParsedInternalValue(internal_value_slice) {
     assert(internal_value_slice.size() >= kStringsValueSuffixLength);

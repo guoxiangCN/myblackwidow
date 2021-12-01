@@ -166,6 +166,57 @@ TEST(TestHVals, RedisHashesTest) {
   }
 }
 
+#define NO_EXPIRE  (-1)
+#define KEY_ABSENT (-2)
+TEST(TestExpireAndTTL, RedisHashesTest) {
+  blackwidow::RedisHashes* redis = nullptr;
+
+  testing::Defer df([&]() {
+    if (redis != nullptr)
+      delete redis;
+    system(kCmdDeleteTestingPath);
+  });
+
+  redis = new blackwidow::RedisHashes(nullptr);
+  blackwidow::BlackWidowOptions opts;
+  opts.options.create_if_missing = true;
+  opts.options.error_if_exists = false;
+  blackwidow::Status s = redis->Open(opts, kTestingPath);
+  EXPECT_TRUE(s.ok());
+
+  int64_t ttl = -999;
+  int64_t unix_time_now;
+
+  s = redis->TTL("tencent_games", &ttl);
+  EXPECT_TRUE(s.IsNotFound());
+  EXPECT_EQ(ttl, KEY_ABSENT);
+
+  s = redis->HSet("tencent_games", "crossfire", "1000");
+  EXPECT_TRUE(s.ok());
+
+  s = redis->TTL("tencent_games", &ttl);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(ttl, NO_EXPIRE);
+
+  s = redis->Expire("tencent_games", 100);
+  EXPECT_TRUE(s.ok());
+
+  s = redis->TTL("tencent_games", &ttl);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(ttl, 100);
+
+  rocksdb::Env::Default()->GetCurrentTime(&unix_time_now);
+  s = redis->ExpireAt("tencent_games", unix_time_now + 88);
+  EXPECT_TRUE(s.ok());
+
+   s = redis->TTL("tencent_games", &ttl);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(ttl, 88);
+
+}
+#undef NO_EXPIRE
+#undef KEY_ABSENT
+
 #define BT_BUF_SIZE 100
 void signal_handler(int signo) {
   std::cout << "SIGNO:" << signo << std::endl;

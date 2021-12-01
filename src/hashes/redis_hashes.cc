@@ -105,7 +105,7 @@ Status RedisHashes::Del(const Slice& key) {
       return Status::NotFound();
     } else {
       // NOTE: 这里不能直接Delete, 因为只删除metaKey，dataKey还在
-      // 如果重复创建一个同key的hash, 会导致旧的field出现在新的hash里
+      // 如果同一秒重复创建一个同key的hash, 会导致旧的field出现在新的hash里
       // 因为versions是用秒做单位可能会导致同一秒复现
 
       uint32_t statistic = parsed_meta_value.hash_size();
