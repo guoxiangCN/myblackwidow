@@ -54,12 +54,12 @@ class HashesMetaFilter : public rocksdb::CompactionFilter {
     }
 
     Trace(
-      "[HashesMetaFilter] level-%d, key: %s, value:%s, timestamp:%ld, "
+      "[HashesMetaFilter] level-%d, key: %s, value:%s, timestamp:%ld, version:%d, hash_size:%d, "
       "currentTime: %ld, shouldFilter:%d, filterReason:%s\n",
       level,
       key.ToString().c_str(),
       existing_value.ToString().c_str(),
-      timestamp,
+      timestamp, version, hash_size,
       unix_time_now,
       should_filter,
       filter_reason.c_str());
@@ -100,6 +100,8 @@ class HashesDataFilter : public rocksdb::CompactionFilter {
               const Slice& existing_value,
               std::string* new_value,
               bool* value_changed) const {
+
+    // Trace("key: %s, key.data:%p, key.size:%d\n",key.ToString().c_str(), key.data(), key.size());
 
     bool should_filter = false;
     std::string filter_reason = "None";

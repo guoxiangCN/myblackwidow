@@ -10,3 +10,6 @@ target_link_libraries(redis_lists_test myblackwidow gtest)
 
 add_executable(redis_hashes_test ./redis_hashes_test.cc)
 target_link_libraries(redis_hashes_test myblackwidow gtest)
+
+add_executable(redis_hashes_compaction_test ./redis_hashes_compaction_test.cc)
+target_link_libraries(redis_hashes_compaction_test myblackwidow gtest)

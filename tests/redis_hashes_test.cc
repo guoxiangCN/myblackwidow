@@ -230,6 +230,8 @@ TEST(TestHSet_V2, RedisHashesTest) {
   blackwidow::BlackWidowOptions opts;
   opts.options.create_if_missing = true;
   opts.options.error_if_exists = false;
+  opts.share_block_cache = false;
+  opts.block_cache_size = 100 * 1024 * 1024;
   blackwidow::Status s = redis->Open(opts, kTestingPath);
   EXPECT_TRUE(s.ok());
 
@@ -237,6 +239,7 @@ TEST(TestHSet_V2, RedisHashesTest) {
   std::vector<blackwidow::FieldValue> fvs;
   std::int32_t newfield_added = -1;
   std::uint32_t hash_size = -1;
+  std::string field_value;
 
   s = redis->HGetAll(hash_key, &fvs);
   EXPECT_TRUE(s.IsNotFound());
@@ -288,6 +291,36 @@ TEST(TestHSet_V2, RedisHashesTest) {
   EXPECT_EQ(game_score_map["穿越火线"], "9");
   EXPECT_EQ(game_score_map["王者荣耀"], "8");
   EXPECT_EQ(game_score_map["刺激战场"], "7");
+
+  // hset a existing field
+  s = redis->HSet(hash_key, "刺激战场", "777", &newfield_added);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(0, newfield_added);
+
+
+  s = redis->HGet(hash_key, "刺激战场", &field_value);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ("777", field_value);
+
+   s = redis->HGetAll(hash_key, &fvs);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(fvs.size(), 4);
+   for(const auto &fv : fvs) {
+    game_score_map[fv.field] = fv.value;
+    std::cout << "field:" << fv.field << ", value:" << fv.value << std::endl;
+  }
+
+
+  // Delete All fields.
+  int32_t deleted = -1;
+  s = redis->HDel(hash_key, game_names, &deleted);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(4, deleted);
+
+  uint32_t hlen = -999;
+  s = redis->HLen(hash_key, &hlen);
+  EXPECT_TRUE(s.IsNotFound());
+  EXPECT_EQ(0, hlen);
 }
 
 #define BT_BUF_SIZE 100

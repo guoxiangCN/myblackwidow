@@ -1,0 +1,17 @@
+#pragma once
+
+#if !defined(HAVE_EPOLL)
+#cmakedefine01 HAVE_EPOLL
+#endif
+
+#if !defined(HAVE_POLL)
+#cmakedefine01 HAVE_POLL
+#endif
+
+#if !defined(HAVE_SELECT)
+#cmakedefine01 HAVE_SELECT
+#endif
+
+#if !defined(HAVE_O_CLOEXEC)
+#cmakedefine01 HAVE_O_CLOEXEC
+#endif

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "debug.h"
 #include "base_value_format.h"
 #include "coding.h"
 #include "rocksdb/env.h"
@@ -199,7 +200,6 @@ class HashesDataKey {
       memcpy(ptr, field_.data(), field_.size());
       ptr += field_.size();
     }
-
     return Slice(start_, ptr - start_);
   }
 

@@ -12,6 +12,31 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g")
 
+#
+include(CheckFunctionExists)
+include(CheckLibraryExists)
+include(CheckSymbolExists)
+include(CheckCXXSymbolExists)
+include(CheckSymbolExists)
+
+# config version.h.in
+set(BLACKWIDOW_MAJOR 1)
+set(BLACKWIDOW_MINOR 0)
+set(BLACKWIDOW_PATCH 0)
+configure_file("${PROJECT_SOURCE_DIR}/include/blackwidow/version.h.in"
+               "${PROJECT_SOURCE_DIR}/include/blackwidow/version.h")
+
+
+# config port_config.h.in
+check_function_exists(epoll_wait HAVE_EPOLL)
+check_function_exists(poll HAVE_POLL)
+check_function_exists(select HAVE_SELECT)
+check_cxx_symbol_exists(O_CLOEXEC "fcntl.h" HAVE_O_CLOEXEC)
+configure_file("${PROJECT_SOURCE_DIR}/include/blackwidow/port_config.h.in"
+               "${PROJECT_SOURCE_DIR}/include/blackwidow/port_config.h")
+
+
+# include headers
 include_directories("${PROJECT_SOURCE_DIR}/include")
 include_directories("${PROJECT_SOURCE_DIR}/tests")
 include_directories("${PROJECT_SOURCE_DIR}/src")
