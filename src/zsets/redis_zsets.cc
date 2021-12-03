@@ -2,15 +2,78 @@
 #include "scope_record_lock.h"
 #include "scope_snapshot.h"
 #include "zsets_format.h"
+#include "zsets_comparator.h"
+#include "rocksdb/db.h"
 
 namespace blackwidow {
+
+rocksdb::Comparator *ZsetsScoreKeyComparator() {
+  static ZsetScoreKeyComparatorImpl cmp;
+  return &cmp;
+}
 
 RedisZsets::RedisZsets(BlackWidow* const bw) : Redis(bw, kZSets) {}
 
 // Common Commands
 Status RedisZsets::Open(const BlackWidowOptions& bw_options,
                         const std::string& dbpath) {
-  return Status::OK();
+  // TODO
+  // statistics_store_->SetCapacity(bw_options.statistics_max_size);
+  // small_compaction_threshold_ = bw_options.small_compaction_threshold;
+  rocksdb::Options opts(bw_options.options);
+  Status s = rocksdb::DB::Open(opts, dbpath, &db_);
+  if(s.ok()) {
+    rocksdb::ColumnFamilyHandle *member_cf = nullptr, *score_cf = nullptr;
+    s = db_->CreateColumnFamily(
+      rocksdb::ColumnFamilyOptions(), "member_cf", &member_cf);
+    if(!s.ok()) {
+      return s;
+    }
+
+    rocksdb::ColumnFamilyOptions score_cf_opts;
+    score_cf_opts.comparator = ZsetsScoreKeyComparator();
+    s = db_->CreateColumnFamily(score_cf_opts, "score_cf", &score_cf);
+    if(!s.ok()) {
+      return s;
+    }
+    delete score_cf;
+    delete member_cf;
+    delete db_;
+  }
+
+  rocksdb::DBOptions db_opts(bw_options.options);
+  rocksdb::ColumnFamilyOptions meta_cf_opts(bw_options.options);
+  rocksdb::ColumnFamilyOptions member_cf_opts(bw_options.options);
+  rocksdb::ColumnFamilyOptions score_cf_opts(bw_options.options);
+
+  meta_cf_opts.compaction_filter_factory.reset(); // TODO
+  member_cf_opts.compaction_filter_factory.reset(); // TODO
+  score_cf_opts.compaction_filter_factory.reset(); // TODO
+  score_cf_opts.comparator = ZsetsScoreKeyComparator();
+
+  // Use bloomFilter and LRUCache
+  rocksdb::BlockBasedTableOptions table_opts(bw_options.table_options);
+  table_opts.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
+  rocksdb::BlockBasedTableOptions meta_cf_table_opts(table_opts);
+  rocksdb::BlockBasedTableOptions member_cf_table_opts(table_opts);
+  rocksdb::BlockBasedTableOptions score_cf_table_opts(table_opts);
+
+  if(!bw_options.share_block_cache && bw_options.block_cache_size > 0) {
+    meta_cf_table_opts.block_cache = rocksdb::NewLRUCache(bw_options.block_cache_size);
+    member_cf_table_opts.block_cache = rocksdb::NewLRUCache(bw_options.block_cache_size);
+    score_cf_table_opts.block_cache = rocksdb::NewLRUCache(bw_options.block_cache_size);
+  }
+
+  meta_cf_opts.table_factory.reset(rocksdb::NewBlockBasedTableFactory(meta_cf_table_opts));
+  member_cf_opts.table_factory.reset(rocksdb::NewBlockBasedTableFactory(member_cf_table_opts));
+  score_cf_opts.table_factory.reset(rocksdb::NewBlockBasedTableFactory(score_cf_table_opts));
+
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+  column_families.push_back(rocksdb::ColumnFamilyDescriptor(rocksdb::kDefaultColumnFamilyName, meta_cf_opts));
+  column_families.push_back(rocksdb::ColumnFamilyDescriptor("member_cf", member_cf_opts));
+  column_families.push_back(rocksdb::ColumnFamilyDescriptor("score_cf", score_cf_opts));
+
+  return rocksdb::DB::Open(db_opts, dbpath, column_families, &handles_, &db_);
 }
 
 Status RedisZsets::CompactRange(const Slice* begin,
@@ -27,6 +90,13 @@ Status RedisZsets::CompactRange(const Slice* begin,
 }
 
 Status RedisZsets::GetProperty(const std::string& property, uint64_t* out) {
+  std::string value;
+  db_->GetProperty(handles_[0], property, &value);
+  *out = std::strtoull(value.c_str(), NULL, 10);
+  db_->GetProperty(handles_[1], property, &value);
+  *out += std::strtoull(value.c_str(), NULL, 10);
+  db_->GetProperty(handles_[2], property, &value);
+  *out += std::strtoull(value.c_str(), NULL, 10);
   return Status::OK();
 }
 
@@ -127,7 +197,7 @@ Status RedisZsets::Persist(const Slice& key) {
 
 Status RedisZsets::TTL(const Slice& key, int64_t* timestamp) {
   std::string meta_value;
-  ScopeRecordLock l(lock_mgr_, key);
+  //   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, ZSETS_META, key, &meta_value);
   if (s.ok()) {
     ParsedZsetsMetaValue parsed_meta_value(&meta_value);
@@ -244,7 +314,9 @@ Status RedisZsets::ZCard(const Slice& key, int32_t* len) {
   return s;
 }
 
-Status RedisZsets::ZScore(const Slice& key, const Slice& member, double* score) {
+Status RedisZsets::ZScore(const Slice& key,
+                          const Slice& member,
+                          double* score) {
   std::string meta_value;
   const rocksdb::Snapshot* snapshot = nullptr;
   ScopeSnapshot ss(db_, &snapshot);
@@ -252,17 +324,17 @@ Status RedisZsets::ZScore(const Slice& key, const Slice& member, double* score) 
   read_opts.snapshot = snapshot;
 
   Status s = db_->Get(read_opts, ZSETS_META, key, &meta_value);
-  if(s.ok()) {
+  if (s.ok()) {
     ParsedZsetsMetaValue parsed_meta_value(&meta_value);
-    if(parsed_meta_value.IsExpired()) {
+    if (parsed_meta_value.IsExpired()) {
       return Status::NotFound("Expired");
-    } else if(parsed_meta_value.zset_size() == 0) {
+    } else if (parsed_meta_value.zset_size() == 0) {
       return Status::NotFound();
     } else {
       std::string scorestr;
       ZsetsMemberKey member_key(key, parsed_meta_value.version(), member);
       s = db_->Get(read_opts, ZSETS_MEMBER, member_key.Encode(), &scorestr);
-      if(s.ok()) {
+      if (s.ok()) {
         assert(scorestr.size() == 8);
         uint64_t x = DecodeFixed64(&scorestr[0]);
         const double* scoreptr = reinterpret_cast<const double*>(&x);
@@ -273,7 +345,8 @@ Status RedisZsets::ZScore(const Slice& key, const Slice& member, double* score) 
   return s;
 }
 
-Status RedisZsets::ZRem(const Slice& key, const std::vector<std::string>& members) {
+Status RedisZsets::ZRem(const Slice& key,
+                        const std::vector<std::string>& members) {
   return Status::OK();
 }
 

@@ -363,21 +363,28 @@ class ZsetsScoreKey {
 
 class ParsedZsetsScoreKey {
  public:
-  ParsedZsetsScoreKey(const Slice& raw_key) {
+  explicit ParsedZsetsScoreKey(const Slice& raw_key) {
+    assert(raw_key.size() > sizeof(uint32_t));
+
     // decode key size
     const char* ptr = raw_key.data();
     size_t keysize = DecodeFixed32(ptr);
     ptr += sizeof(uint32_t);
+    
     // decode key
+    assert(raw_key.size() > (sizeof(uint32_t) + keysize + sizeof(int32_t) + sizeof(double)));
     key_ = Slice(ptr, keysize);
     ptr += keysize;
+    
     // decode version
     version_ = DecodeFixed32(ptr);
     ptr += sizeof(uint32_t);
+    
     // decode score
     const double* scoreptr = reinterpret_cast<const double*>(ptr);
     score_ = *scoreptr;
     ptr += sizeof(double);
+    
     // decode member
     member_ = Slice(ptr, raw_key.size() - (ptr - raw_key.data()));
   }

@@ -35,12 +35,11 @@ class RedisZsets : public Redis {
   // TODO Scan
   // TODO: PKExpireScan
 
-
   // Zset Commands
   O_1 Status ZAdd(const Slice& key, const std::vector<ScoreMember>& members, int32_t *ret);
   O_1 Status ZCard(const Slice& key, int32_t* len);
   O_1 Status ZScore(const Slice& key, const Slice& member, double* score);
-  O_1 Status ZRem(const Slice& key, const std::vector<std::string>& members);
+  O_1 Status ZRem(const Slice& key, const std::vector<std::string>& members); // TODO.
   O_N Status ZCount(const Slice& key, double min, double max, int32_t* count);
   O_N Status ZRank(const Slice& key, const Slice& member, int32_t* rank);   
 };  // class RedisZsets
