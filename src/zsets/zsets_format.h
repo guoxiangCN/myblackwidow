@@ -1,12 +1,26 @@
 #pragma once
 
+#include "base_value_format.h"
+#include "rocksdb/env.h"
 #include "rocksdb/slice.h"
 
-// meta_cf:
+// Zset layouts disrible in kv-model.
+
+// MetaKey:   |ZsetKey|
+// MetaVal:   |ZsetLen(4bytes)|Version(4bytes)|TTL(4bytes)|
+
+// MemberKey: |KeySize(4bytes)|ZsetKey|Version(4bytes)|Member|
+// MemberVal: |Score|
 //
-// data_cf:
-//
-// score_cf:
+// ScoreKey:  |KeySize(4bytes)|ZsetKey|Version(4bytes)|Score(8bytes)|Member|
+// ScoreVal:  |NULL|
+
+// NOTE: Extral score kv was used for ZRankXXX-likes functions.
+// It's stored in the standalonoe ColumnFamily and must use the
+// sepcial rocksdb::Comparator for RANK !!!
+// Note that the member was storerd in the key after score fixed
+// instead of store in the value. It designes for when some members
+// score was same, then we use the member to compare fallback.
 
 namespace blackwidow {
 
@@ -93,7 +107,7 @@ class ParsedZsetsMetaValue : public ParsedInternalValue {
   }
 
   void InitialMetaValue() {
-    this->set_hash_size(0);
+    this->set_zset_size(0);
     this->set_timestamp(0);
     this->UpdateVersion();
   }
@@ -142,12 +156,14 @@ class ParsedZsetsMetaValue : public ParsedInternalValue {
   uint32_t zset_size_;
 };
 
-class ZsetsDataKey {
+class ZsetsMemberKey {
  public:
-  explicit ZsetsDataKey(const Slice& key, const Slice& member, int32_t version)
+  explicit ZsetsMemberKey(const Slice& key,
+                          const Slice& member,
+                          int32_t version)
     : key_(key), member_(member), version_(version), start_(space_) {}
 
-  virtual ~ZsetsDataKey() {
+  virtual ~ZsetsMemberKey() {
     if (start_ != space_) {
       delete[] start_;
     }
@@ -192,12 +208,10 @@ class ZsetsDataKey {
   const int32_t version_;
 };
 
-// MemberKey: |KeySize(4bytes)|UserKey|Version(4bytes)|Member|
-// MemberVal: |Score|
-class ParsedZsetsDataKey {
+class ParsedZsetsMemberKey {
  public:
   // use this constructor in CompactionFilter
-  explicit ParsedZsetsDataKey(const Slice& raw_key) {
+  explicit ParsedZsetsMemberKey(const Slice& raw_key) {
     assert(raw_key.size() >= (sizeof(uint32_t) + sizeof(int32_t)));
     const char* ptr = raw_key.data();
     key_size_ = DecodeFixed32(ptr);
@@ -241,5 +255,92 @@ class ParsedZsetsDataKey {
   Slice member_;
 };
 
+class ZsetsScoreKey {
+ public:
+  ZsetsScoreKey(const Slice& key,
+                const Slice& member,
+                double score,
+                int32_t version)
+    : key_(key),
+      member_(member),
+      score_(score),
+      version_(version),
+      start_(space_) {}
+
+  ~ZsetsScoreKey() {
+    if (start_ != space_) {
+      delete[] start_;
+    }
+  }
+
+  // NOTE: Only encode once per object, or else may cause memory leak !!!
+  const Slice Encode() {
+#ifndef NDEBUG
+    assert(encode_times_ == 0);
+    encode_times_++;
+#endif
+    size_t needsz = sizeof(uint32_t) + key_.size() + sizeof(int32_t) +
+      sizeof(double) + member_.size();
+
+    if (needsz > sizeof(space_)) {
+      if (start_ != space_) {
+        delete[] start_;
+      }
+      start_ = new char[needsz];
+    } else {
+      start_ = space_;
+    }
+
+    // Encode zsetkey size
+    char* ptr = start_;
+    EncodeFixed32(ptr, key_.size());
+    ptr += sizeof(uint32_t);
+
+    // Encode zsetkey. Allow empty.
+    if(key_.size() > 0) {
+      memcpy(ptr, key_.data(), key_.size());
+      ptr += key_.size();
+    }
+
+    // Encode version
+    EncodeFixed32(ptr, version_);
+    ptr += sizeof(int32_t);
+
+    // Encode score
+    static_assert(sizeof(double) == 8, "sizeof(double) != 8");
+    const uint64_t* score_ptr = reinterpret_cast<const uint64_t*>(&score_);
+    EncodeFixed64(ptr, *score_ptr);
+    ptr += sizeof(double);
+
+    // Encode member. Allow empty
+    if(member_.size() > 0) {
+      memcpy(ptr, member_.data(), member_.size());
+      ptr += member_.size();
+    }
+
+    return Slice(start_, ptr- start_);
+  }
+
+  std::string GetScoreAsString() const {
+    char buf[8] = {0};
+    static_assert(sizeof(double) == 8, "sizeof(double) != 8");
+    const uint64_t* score_ptr = reinterpret_cast<const uint64_t*>(&score_);
+    EncodeFixed64(buf, *score_ptr);
+    return Slice(buf, 8).ToString();
+  }
+
+ private:
+  char space_[250];
+  char* start_;
+  Slice key_;
+  Slice member_;
+  double score_;
+  int32_t version_;
+#ifndef NDEBUG
+  int encode_times_{0};
+#endif
+};
+
+class ParsedZsetsScoreKey {};
 
 }  // namespace blackwidow
