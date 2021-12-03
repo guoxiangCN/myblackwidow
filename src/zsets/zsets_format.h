@@ -2,6 +2,12 @@
 
 #include "rocksdb/slice.h"
 
+// meta_cf:
+//
+// data_cf:
+//
+// score_cf:
+
 namespace blackwidow {
 
 using Slice = rocksdb::Slice;
