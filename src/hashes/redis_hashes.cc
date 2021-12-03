@@ -357,6 +357,7 @@ Status RedisHashes::HGetAll(const Slice& key, std::vector<FieldValue>* fvs) {
       return Status::NotFound();
     } else {
       fvs->clear();
+      // <keysize><key><version><field>
       HashesDataKey data_key(key, "", parsed_meta_value.version());
       const Slice prefix = data_key.Encode();
       rocksdb::Iterator* it = db_->NewIterator(read_opts, HASHES_DATA);

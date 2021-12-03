@@ -125,6 +125,10 @@ class ParsedInternalValue {
     return timestamp_ < unix_time;
   }
 
+  bool IsExpired() const {
+    return IsStale();
+  }
+
   virtual void StripSuffix() = 0;
 
  protected:

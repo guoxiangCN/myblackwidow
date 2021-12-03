@@ -3,6 +3,7 @@
 #include "base_value_format.h"
 #include "rocksdb/env.h"
 #include "rocksdb/slice.h"
+#include <cassert>
 
 // Zset layouts disrible in kv-model.
 
@@ -97,8 +98,12 @@ class ParsedZsetsMetaValue : public ParsedInternalValue {
     assert(false);
   }
 
-  uint32_t zset_szie() const {
+  uint32_t zset_size() const {
     return zset_size_;
+  }
+
+  bool zset_isempty() const {
+    return zset_size() == 0;
   }
 
   void set_zset_size(uint32_t zset_size) {
@@ -158,9 +163,8 @@ class ParsedZsetsMetaValue : public ParsedInternalValue {
 
 class ZsetsMemberKey {
  public:
-  explicit ZsetsMemberKey(const Slice& key,
-                          const Slice& member,
-                          int32_t version)
+
+  ZsetsMemberKey(const Slice& key, int32_t version, const Slice& member)
     : key_(key), member_(member), version_(version), start_(space_) {}
 
   virtual ~ZsetsMemberKey() {
@@ -258,9 +262,9 @@ class ParsedZsetsMemberKey {
 class ZsetsScoreKey {
  public:
   ZsetsScoreKey(const Slice& key,
-                const Slice& member,
+                int32_t version,
                 double score,
-                int32_t version)
+                const Slice& member)
     : key_(key),
       member_(member),
       score_(score),
@@ -272,6 +276,9 @@ class ZsetsScoreKey {
       delete[] start_;
     }
   }
+
+  ZsetsScoreKey(const ZsetsScoreKey&) = delete;
+  ZsetsScoreKey& operator=(const ZsetsScoreKey&) = delete;
 
   // NOTE: Only encode once per object, or else may cause memory leak !!!
   const Slice Encode() {
@@ -297,7 +304,7 @@ class ZsetsScoreKey {
     ptr += sizeof(uint32_t);
 
     // Encode zsetkey. Allow empty.
-    if(key_.size() > 0) {
+    if (key_.size() > 0) {
       memcpy(ptr, key_.data(), key_.size());
       ptr += key_.size();
     }
@@ -313,12 +320,12 @@ class ZsetsScoreKey {
     ptr += sizeof(double);
 
     // Encode member. Allow empty
-    if(member_.size() > 0) {
+    if (member_.size() > 0) {
       memcpy(ptr, member_.data(), member_.size());
       ptr += member_.size();
     }
 
-    return Slice(start_, ptr- start_);
+    return Slice(start_, ptr - start_);
   }
 
   std::string GetScoreAsString() const {
@@ -327,6 +334,19 @@ class ZsetsScoreKey {
     const uint64_t* score_ptr = reinterpret_cast<const uint64_t*>(&score_);
     EncodeFixed64(buf, *score_ptr);
     return Slice(buf, 8).ToString();
+  }
+
+  static std::string GetKeyAndVersionPrefix(const Slice &key, int32_t version) {
+    size_t needsz = sizeof(uint32_t) + key.size() + sizeof(int32_t);
+    std::string prefix(needsz, 0);
+    char* ptr = &prefix[0];
+    EncodeFixed32(ptr, key.size());
+    ptr += sizeof(uint32_t);
+    memcpy(ptr, key.data(), key.size());
+    ptr += key.size();
+    EncodeFixed32(ptr, version);
+    ptr += sizeof(int32_t);
+    return prefix;
   }
 
  private:
@@ -341,6 +361,53 @@ class ZsetsScoreKey {
 #endif
 };
 
-class ParsedZsetsScoreKey {};
+class ParsedZsetsScoreKey {
+ public:
+  ParsedZsetsScoreKey(const Slice& raw_key) {
+    // decode key size
+    const char* ptr = raw_key.data();
+    size_t keysize = DecodeFixed32(ptr);
+    ptr += sizeof(uint32_t);
+    // decode key
+    key_ = Slice(ptr, keysize);
+    ptr += keysize;
+    // decode version
+    version_ = DecodeFixed32(ptr);
+    ptr += sizeof(uint32_t);
+    // decode score
+    const double* scoreptr = reinterpret_cast<const double*>(ptr);
+    score_ = *scoreptr;
+    ptr += sizeof(double);
+    // decode member
+    member_ = Slice(ptr, raw_key.size() - (ptr - raw_key.data()));
+  }
+
+  ~ParsedZsetsScoreKey() {}
+
+  ParsedZsetsScoreKey(const ParsedZsetsScoreKey&) = delete;
+  ParsedZsetsScoreKey& operator=(const ParsedZsetsScoreKey&) = delete;
+
+  const Slice key() const {
+    return key_;
+  }
+
+  const int32_t version() const {
+    return version_;
+  }
+
+  const double score() const {
+    return score_;
+  }
+
+  const Slice member() const {
+    return member_;
+  }
+
+ private:
+  Slice key_;
+  int32_t version_;
+  double score_;
+  Slice member_;
+};
 
 }  // namespace blackwidow

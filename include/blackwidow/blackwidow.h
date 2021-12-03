@@ -188,6 +188,13 @@ enum Operation {
   kCompactKey
 };
 
+#define O_1
+#define O_N
+#define O_LOGN
+#define O_N2
+#define O_M_LOGN
+
+
 struct BGTask {
   DataType type;
   Operation operation;
