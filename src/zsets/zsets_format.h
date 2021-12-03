@@ -1,5 +1,5 @@
 #pragma once
-
+#include "debug.h"
 #include "base_value_format.h"
 #include "rocksdb/env.h"
 #include "rocksdb/slice.h"
@@ -364,15 +364,19 @@ class ZsetsScoreKey {
 class ParsedZsetsScoreKey {
  public:
   explicit ParsedZsetsScoreKey(const Slice& raw_key) {
-    assert(raw_key.size() > sizeof(uint32_t));
 
+    // Trace("raw_key.size: %d, data: %s\n",
+    //       raw_key.size(),
+    //       Slice(raw_key.data() + 4).ToString().c_str());
+
+    assert(raw_key.size() > sizeof(uint32_t));
     // decode key size
     const char* ptr = raw_key.data();
     size_t keysize = DecodeFixed32(ptr);
     ptr += sizeof(uint32_t);
     
     // decode key
-    assert(raw_key.size() > (sizeof(uint32_t) + keysize + sizeof(int32_t) + sizeof(double)));
+    assert(raw_key.size() >= (sizeof(uint32_t) + keysize + sizeof(int32_t) + sizeof(double)));
     key_ = Slice(ptr, keysize);
     ptr += keysize;
     

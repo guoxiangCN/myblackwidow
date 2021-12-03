@@ -230,7 +230,7 @@ Status RedisZsets::TTL(const Slice& key, int64_t* timestamp) {
 Status RedisZsets::ZAdd(const Slice& key,
                         const std::vector<ScoreMember>& members,
                         int32_t* ret) {
-  if (members.size()) {
+  if (members.size() == 0) {
     if (ret)
       *ret = 0;
     return Status::OK();
@@ -381,7 +381,7 @@ Status RedisZsets::ZCount(const Slice& key,
       ZsetsScoreKey min_key(key, version, min, Slice());
 
       // 这里不推荐前缀，如果zset很大, min-max在很后面则需要大量无效的seek
-      rocksdb::Iterator* it = db_->NewIterator(read_opts);
+      rocksdb::Iterator* it = db_->NewIterator(read_opts, ZSETS_SCORE);
       for (it->Seek(min_key.Encode()); it->Valid(); it->Next()) {
         ParsedZsetsScoreKey score_key(it->key());
         if (score_key.key() != key || score_key.version() != version) {
@@ -422,17 +422,28 @@ Status RedisZsets::ZRank(const Slice& key, const Slice& member, int32_t* rank) {
       bool found = false;
       int32_t index = 0;
       int32_t version = parsed_meta_value.version();
+      
       // <keysz><key><version> | <score><member>
-      std::string prefix = ZsetsScoreKey::GetKeyAndVersionPrefix(key, version);
-      rocksdb::Iterator* it = db_->NewIterator(read_opts);
-      for (it->Seek(prefix); it->Valid() && it->key().starts_with(prefix);
-           it->Next(), index++) {
+      // WARNING: std::string prefix = ZsetsScoreKey::GetKeyAndVersionPrefix(key, version);
+      // 前缀定位时自定义比较器的参数是前缀，强制解码会有问题.
+
+      ZsetsScoreKey min_score_key(key,version,ZSET_SCORE_MIN, Slice());
+      rocksdb::Iterator* it = db_->NewIterator(read_opts, ZSETS_SCORE);
+
+      for (it->Seek(min_score_key.Encode()); it->Valid();it->Next(), index++) {
         ParsedZsetsScoreKey parsed_score_key(it->key());
-        if (parsed_score_key.member() == member) {
+
+        // seek定位到大于等于min的第一个key
+        if(parsed_score_key.key() != key || parsed_score_key.version() != version ){
+          break;
+        }
+    
+        if (parsed_score_key.member().compare(member) == 0) {
           found = true;
           break;
         }
       }
+
       delete it;
       if (found) {
         *rank = index;

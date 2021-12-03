@@ -1,5 +1,6 @@
 #pragma once
 
+#include "debug.h"
 #include "rocksdb/comparator.h"
 #include "zsets_format.h"
 
@@ -9,7 +10,7 @@ using rocksdb::Slice;
 
 // ZsetScoreKeyLayout:
 // <key_size><key><version><score><member> : <nil>
-class ZsetScoreKeyComparatorImpl : rocksdb::Comparator {
+class ZsetScoreKeyComparatorImpl : public rocksdb::Comparator {
  public:
   const char* Name() const override {
     return "blackwidow.ZsetScoreKeyComparator";
@@ -34,7 +35,7 @@ class ZsetScoreKeyComparatorImpl : rocksdb::Comparator {
     // 2. compare the version number
     int32_t version_a = scorekey_a.version();
     int32_t version_b = scorekey_b.version();
-    cmp_res = version_a - version_b;
+    cmp_res = (version_a < version_b ? -1 : (version_a == version_b ? 0 : 1));
     if (cmp_res != 0) {
       return cmp_res;
     }
@@ -42,8 +43,8 @@ class ZsetScoreKeyComparatorImpl : rocksdb::Comparator {
     // 3.compare the store
     double score_a = scorekey_a.score();
     double score_b = scorekey_b.score();
-    cmp_res = score_a - score_b;
-    if(cmp_res != 0) {
+    cmp_res = (score_a < score_b ? -1 : (score_a == score_b ? 0 : 1));
+    if (cmp_res != 0) {
       return cmp_res;
     }
 
